@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/app/lib/prisma";
-
+type StaffWithAttendance =
+  Prisma.StaffGetPayload<{
+    include: {
+      attendance: true;
+    };
+  }>;
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } =
@@ -31,8 +37,8 @@ export async function GET(request: NextRequest) {
         },
       });
 
-    const attendance = staff.map(
-      (member) => {
+   const attendance = staff.map(
+  (member: StaffWithAttendance) => {
         const record =
           member.attendance[0];
 
