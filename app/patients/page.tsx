@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import {
+  Suspense,
+  useEffect,
+  useState,
+} from "react";
+
+import {
+  useRouter,
+  useSearchParams,
+} from "next/navigation";
 
 type Patient = {
   id: number;
@@ -21,7 +29,7 @@ type Patient = {
   }[];
 };
 
-export default function PatientsPage() {
+function PatientsPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -716,4 +724,22 @@ function button(color: string) {
     cursor: "pointer",
     fontWeight: 600,
   } as const;
+}
+export default function PatientsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            padding: 30,
+            fontFamily: "Arial",
+          }}
+        >
+          Loading patients...
+        </div>
+      }
+    >
+      <PatientsPageContent />
+    </Suspense>
+  );
 }

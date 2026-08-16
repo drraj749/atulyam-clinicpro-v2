@@ -1,14 +1,27 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import {
+  Suspense,
+} from "react";
+
+import {
+  useSearchParams,
+} from "next/navigation";
+
 import PrescriptionEditor from "@/app/components/opd/view/PrescriptionEditor";
 
-export default function PrescriptionPage() {
-  const searchParams = useSearchParams();
+function PrescriptionPageContent() {
+  const searchParams =
+    useSearchParams();
 
-  const visitId = Number(searchParams.get("visitId"));
+  const visitId = Number(
+    searchParams.get("visitId")
+  );
 
-  if (!visitId || Number.isNaN(visitId)) {
+  if (
+    !visitId ||
+    Number.isNaN(visitId)
+  ) {
     return (
       <div className="p-10">
         <div className="bg-red-100 border border-red-300 text-red-700 rounded-lg p-4">
@@ -26,9 +39,25 @@ export default function PrescriptionPage() {
           Prescription Editor
         </h1>
 
-        <PrescriptionEditor opdVisitId={visitId} />
+        <PrescriptionEditor
+          opdVisitId={visitId}
+        />
 
       </div>
     </div>
+  );
+}
+
+export default function PrescriptionPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-10">
+          Loading prescription...
+        </div>
+      }
+    >
+      <PrescriptionPageContent />
+    </Suspense>
   );
 }

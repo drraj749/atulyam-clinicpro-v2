@@ -21,11 +21,13 @@ export default function NewStaffPage() {
     isActive: true,
   });
 
-  function handleChange(
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLSelectElement
-    >
-  ) {
+ function handleChange(
+  e: React.ChangeEvent<
+    HTMLInputElement |
+    HTMLSelectElement |
+    HTMLTextAreaElement
+  >
+) {
     const {
       name,
       value,

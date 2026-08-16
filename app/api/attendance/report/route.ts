@@ -1,7 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
 import { prisma } from "@/app/lib/prisma";
 
-export async function GET(request: NextRequest) {
+type StaffMember = {
+  id: number;
+  staffCode: string;
+  name: string;
+  role: string;
+  mobile: string | null;
+  isActive: boolean;
+};
+
+type AttendanceRecord = {
+  id: number;
+  staffId: number;
+  attendanceDate: string;
+  status: string;
+  checkIn: Date | null;
+  checkOut: Date | null;
+  remarks: string | null;
+};
+
+export async function GET(
+  request: NextRequest
+) {
   try {
     const { searchParams } =
       new URL(request.url);
@@ -11,6 +36,10 @@ export async function GET(request: NextRequest) {
 
     const to =
       searchParams.get("to");
+
+    // --------------------------------
+    // VALIDATE DATES
+    // --------------------------------
 
     if (!from || !to) {
       return NextResponse.json(
@@ -25,15 +54,31 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // --------------------------------
+    // LOAD STAFF
+    // --------------------------------
+
     const staff =
-      await prisma.staff.findMany({
+      (await prisma.staff.findMany({
         orderBy: {
           name: "asc",
         },
-      });
+        select: {
+          id: true,
+          staffCode: true,
+          name: true,
+          role: true,
+          mobile: true,
+          isActive: true,
+        },
+      })) as StaffMember[];
+
+    // --------------------------------
+    // LOAD ATTENDANCE
+    // --------------------------------
 
     const attendance =
-      await prisma.attendance.findMany({
+      (await prisma.attendance.findMany({
         where: {
           attendanceDate: {
             gte: from,
@@ -49,144 +94,174 @@ export async function GET(request: NextRequest) {
             staffId: "asc",
           },
         ],
-      });
+      })) as AttendanceRecord[];
 
-    const staffReport = staff.map(
-      (member) => {
-        const records =
-          attendance.filter(
-            (record) =>
-              record.staffId ===
-              member.id
-          );
+    // --------------------------------
+    // BUILD STAFF REPORT
+    // --------------------------------
 
-        const present =
-          records.filter(
-            (record) =>
-              record.status ===
-              "Present"
-          ).length;
+    const staffReport =
+      staff.map(
+        (member: StaffMember) => {
+          const records =
+            attendance.filter(
+              (record: AttendanceRecord) =>
+                record.staffId ===
+                member.id
+            );
 
-        const absent =
-          records.filter(
-            (record) =>
-              record.status ===
-              "Absent"
-          ).length;
+          // ----------------------------
+          // STATUS COUNTS
+          // ----------------------------
 
-        const halfDay =
-          records.filter(
-            (record) =>
-              record.status ===
-              "Half Day"
-          ).length;
+          const present =
+            records.filter(
+              (record: AttendanceRecord) =>
+                record.status ===
+                "Present"
+            ).length;
 
-        const leave =
-          records.filter(
-            (record) =>
-              record.status ===
-              "Leave"
-          ).length;
+          const absent =
+            records.filter(
+              (record: AttendanceRecord) =>
+                record.status ===
+                "Absent"
+            ).length;
 
-        const totalMarked =
-          records.length;
+          const halfDay =
+            records.filter(
+              (record: AttendanceRecord) =>
+                record.status ===
+                "Half Day"
+            ).length;
 
-        const percentage =
-          totalMarked > 0
-            ? (
-                ((present +
-                  halfDay * 0.5) /
-                  totalMarked) *
-                100
-              ).toFixed(1)
-            : "0.0";
+          const leave =
+            records.filter(
+              (record: AttendanceRecord) =>
+                record.status ===
+                "Leave"
+            ).length;
 
-        return {
-          staff: {
-            id: member.id,
+          const totalMarked =
+            records.length;
 
-            staffCode:
-              member.staffCode,
+          // ----------------------------
+          // ATTENDANCE PERCENTAGE
+          // ----------------------------
 
-            name: member.name,
+          const percentage =
+            totalMarked > 0
+              ? Number(
+                  (
+                    ((present +
+                      halfDay * 0.5) /
+                      totalMarked) *
+                    100
+                  ).toFixed(1)
+                )
+              : 0;
 
-            role: member.role,
+          // ----------------------------
+          // RETURN STAFF REPORT
+          // ----------------------------
 
-            mobile:
-              member.mobile,
+          return {
+            staff: {
+              id: member.id,
 
-            isActive:
-              member.isActive,
-          },
+              staffCode:
+                member.staffCode,
 
-          summary: {
-            present,
+              name:
+                member.name,
 
-            absent,
+              role:
+                member.role,
 
-            halfDay,
+              mobile:
+                member.mobile,
 
-            leave,
+              isActive:
+                member.isActive,
+            },
 
-            totalMarked,
+            summary: {
+              present,
 
-            percentage:
-              Number(
-                percentage
+              absent,
+
+              halfDay,
+
+              leave,
+
+              totalMarked,
+
+              percentage,
+            },
+
+            records:
+              records.map(
+                (
+                  record: AttendanceRecord
+                ) => ({
+                  id:
+                    record.id,
+
+                  attendanceDate:
+                    record.attendanceDate,
+
+                  status:
+                    record.status,
+
+                  checkIn:
+                    record.checkIn,
+
+                  checkOut:
+                    record.checkOut,
+
+                  remarks:
+                    record.remarks,
+                })
               ),
-          },
+          };
+        }
+      );
 
-          records: records.map(
-            (record) => ({
-              id: record.id,
-
-              attendanceDate:
-                record.attendanceDate,
-
-              status:
-                record.status,
-
-              checkIn:
-                record.checkIn,
-
-              checkOut:
-                record.checkOut,
-
-              remarks:
-                record.remarks,
-            })
-          ),
-        };
-      }
-    );
+    // --------------------------------
+    // OVERALL SUMMARY
+    // --------------------------------
 
     const totalPresent =
       attendance.filter(
-        (record) =>
+        (record: AttendanceRecord) =>
           record.status ===
           "Present"
       ).length;
 
     const totalAbsent =
       attendance.filter(
-        (record) =>
+        (record: AttendanceRecord) =>
           record.status ===
           "Absent"
       ).length;
 
     const totalHalfDay =
       attendance.filter(
-        (record) =>
+        (record: AttendanceRecord) =>
           record.status ===
           "Half Day"
       ).length;
 
     const totalLeave =
       attendance.filter(
-        (record) =>
+        (record: AttendanceRecord) =>
           record.status ===
           "Leave"
       ).length;
+
+    // --------------------------------
+    // RESPONSE
+    // --------------------------------
 
     return NextResponse.json({
       success: true,
@@ -214,11 +289,15 @@ export async function GET(request: NextRequest) {
       staffReport,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "ATTENDANCE REPORT ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
+
         message:
           "Unable to generate attendance report.",
       },
