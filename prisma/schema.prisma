@@ -1,0 +1,252 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Patient {
+  id         Int        @id @default(autoincrement())
+  patientId  String     @unique
+  firstName  String
+  lastName   String?
+  age        Int
+  gender     String
+  mobile     String
+  address    String?
+  bloodGroup String?
+  aadhaar    String?
+  occupation String?
+  isActive   Boolean    @default(true)
+  archivedAt DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  labOrders  LabOrder[]
+  visits     OpdVisit[]
+}
+
+model OpdVisit {
+  id                      Int           @id @default(autoincrement())
+  opdNo                   String        @unique
+  patientId               Int
+  doctor                  String
+  department              String
+  complaint               String?
+  historyOfPresentIllness String?
+  pastHistory             String?
+  drugHistory             String?
+  familyHistory           String?
+  personalHistory         String?
+  allergy                 String?
+  examination             String?
+  generalExamination      String?
+  cvs                     String?
+  rs                      String?
+  cns                     String?
+  pa                      String?
+  localExamination        String?
+  diagnosis               String?
+  advice                  String?
+  bp                      String?
+  pulse                   Int?
+  respiratoryRate         Int?
+  temperature             Float?
+  spo2                    Int?
+  height                  Float?
+  weight                  Float?
+  bmi                     Float?
+  randomBloodSugar        Float?
+  painScore               Int?
+  fee                     Float?
+  paymentMode             String?
+  followUpDate            DateTime?
+  followUpFromId          Int?
+  createdAt               DateTime      @default(now())
+  patient                 Patient       @relation(fields: [patientId], references: [id])
+  prescription            Prescription?
+}
+
+model Prescription {
+  id             Int                @id @default(autoincrement())
+  opdVisitId     Int                @unique
+  notes          String?
+  investigations String?
+  createdAt      DateTime           @default(now())
+  opdVisit       OpdVisit           @relation(fields: [opdVisitId], references: [id])
+  items          PrescriptionItem[]
+}
+
+model PrescriptionItem {
+  id             Int          @id @default(autoincrement())
+  prescriptionId Int
+  medicineName   String
+  strength       String?
+  dosage         String?
+  frequency      String?
+  duration       String?
+  instruction    String?
+  morning        Boolean      @default(false)
+  afternoon      Boolean      @default(false)
+  night          Boolean      @default(false)
+  beforeFood     Boolean      @default(false)
+  afterFood      Boolean      @default(false)
+  sos            Boolean      @default(false)
+  quantity       Int?
+  route          String?
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
+
+model Medicine {
+  id           Int      @id @default(autoincrement())
+  medicineCode String   @unique
+  genericName  String
+  brandName    String?
+  strength     String?
+  dosageForm   String?
+  route        String?
+  manufacturer String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DiseaseTemplate {
+  id             Int                       @id @default(autoincrement())
+  name           String                    @unique
+  category       String?
+  investigations String?
+  advice         String?
+  notes          String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+  medicines      DiseaseTemplateMedicine[]
+}
+
+model DiseaseTemplateMedicine {
+  id           Int             @id @default(autoincrement())
+  templateId   Int
+  medicineName String
+  strength     String?
+  dosage       String?
+  frequency    String?
+  duration     String?
+  instruction  String?
+  morning      Boolean         @default(false)
+  afternoon    Boolean         @default(false)
+  night        Boolean         @default(false)
+  beforeFood   Boolean         @default(false)
+  afterFood    Boolean         @default(false)
+  sos          Boolean         @default(false)
+  quantity     Int?
+  route        String?
+  template     DiseaseTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+model LabTest {
+  id          Int            @id @default(autoincrement())
+  testCode    String         @unique
+  category    String
+  testName    String
+  shortName   String?
+  specimen    String
+  method      String?
+  unit        String?
+  normalRange String?
+  price       Float
+  active      Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  orderItems  LabOrderItem[]
+}
+
+model LabOrder {
+  id          Int            @id @default(autoincrement())
+  orderNo     String         @unique
+  patientId   Int
+  referredBy  String?
+  status      String         @default("Pending")
+  collectedAt DateTime?
+  reportedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  patient     Patient        @relation(fields: [patientId], references: [id])
+  items       LabOrderItem[]
+}
+
+model LabOrderItem {
+  id      Int      @id @default(autoincrement())
+  orderId Int
+  testId  Int
+  result  String?
+  remarks String?
+  order   LabOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  test    LabTest  @relation(fields: [testId], references: [id])
+}
+
+model HospitalSettings {
+  id                 Int      @id @default(1)
+  hospitalName       String
+  tagline            String?
+  address            String
+  city               String?
+  state              String?
+  pincode            String?
+  phone              String?
+  email              String?
+  website            String?
+  doctorName         String
+  qualification      String?
+  registrationNo     String?
+  logo               String?
+  signature          String?
+  prescriptionFooter String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model Staff {
+  id           Int            @id @default(autoincrement())
+  staffCode    String         @unique
+  name         String
+  role         String
+  mobile       String?
+  address      String?
+  joiningDate  DateTime?
+  isActive     Boolean        @default(true)
+  username     String?        @unique
+  passwordHash String?
+  loginEnabled Boolean        @default(false)
+  lastLoginAt  DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  attendance   Attendance[]
+  sessions     StaffSession[]
+}
+
+model Attendance {
+  id             Int       @id @default(autoincrement())
+  staffId        Int
+  attendanceDate String
+  status         String    @default("Present")
+  checkIn        DateTime?
+  checkOut       DateTime?
+  remarks        String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  staff          Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, attendanceDate])
+  @@index([attendanceDate])
+}
+
+model StaffSession {
+  id        Int      @id @default(autoincrement())
+  staffId   Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  staff     Staff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([expiresAt])
+}
