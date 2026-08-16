@@ -48,7 +48,8 @@ export async function GET() {
       }),
     ]);
 
-    const recent = recentVisits.map((visit) => ({
+    const recent = recentVisits.map(
+  (visit: typeof recentVisits[number]) => ({
       id: visit.id,
       opdNo: visit.opdNo,
       patientName:
@@ -61,8 +62,9 @@ export async function GET() {
       doctor: visit.doctor,
       department: visit.department,
       fee: visit.fee,
-      createdAt: visit.createdAt,
-    }));
+          createdAt: visit.createdAt,
+  })
+);
 
     return NextResponse.json({
       success: true,
