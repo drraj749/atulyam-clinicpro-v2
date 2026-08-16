@@ -1,12 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
 import { prisma } from "@/app/lib/prisma";
-type StaffWithAttendance =
-  Prisma.StaffGetPayload<{
-    include: {
-      attendance: true;
-    };
+
+type StaffWithAttendance = {
+  id: number;
+  staffCode: string;
+  name: string;
+  role: string;
+  mobile: string | null;
+  attendance: Array<{
+    id: number;
+    status: string;
+    checkIn: Date | null;
+    checkOut: Date | null;
+    remarks: string | null;
+    attendanceDate: string;
   }>;
+};
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } =
