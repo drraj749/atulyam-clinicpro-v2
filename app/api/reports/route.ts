@@ -53,9 +53,10 @@ export async function GET(request: NextRequest) {
     ]);
 
     const totalCollection = opdVisits.reduce(
-      (sum, visit) => sum + (visit.fee ?? 0),
-      0
-    );
+  (sum: number, visit) =>
+    sum + (visit.fee ?? 0),
+  0
+);
 
     const report = opdVisits.map((visit) => ({
       id: visit.id,
