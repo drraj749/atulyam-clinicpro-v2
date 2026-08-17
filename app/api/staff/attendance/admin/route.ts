@@ -153,58 +153,58 @@ export async function GET(
      * Summary
      */
 
-    const present =
-      records.filter(
-        (item) =>
-          item.attendance
-            ?.status ===
-          "Present"
-      ).length;
+const present =
+  records.filter(
+    (item: typeof records[number]) =>
+      item.attendance
+        ?.status ===
+      "Present"
+  ).length;
 
-    const halfDay =
-      records.filter(
-        (item) =>
-          item.attendance
-            ?.status ===
-          "Half Day"
-      ).length;
+const halfDay =
+  records.filter(
+    (item: typeof records[number]) =>
+      item.attendance
+        ?.status ===
+      "Half Day"
+  ).length;
 
-    const leave =
-      records.filter(
-        (item) =>
-          item.attendance
-            ?.status ===
-          "Leave"
-      ).length;
+const leave =
+  records.filter(
+    (item: typeof records[number]) =>
+      item.attendance
+        ?.status ===
+      "Leave"
+  ).length;
 
-    const absent =
-      records.filter(
-        (item) =>
-          !item.attendance ||
-          item.attendance
-            ?.status ===
-            "Absent"
-      ).length;
+const absent =
+  records.filter(
+    (item: typeof records[number]) =>
+      !item.attendance ||
+      item.attendance
+        ?.status ===
+      "Absent"
+  ).length;
 
-    const checkedIn =
-      records.filter(
-        (item) =>
-          Boolean(
-            item.attendance
-              ?.checkIn
-          ) &&
-          !item.attendance
-            ?.checkOut
-      ).length;
+const checkedIn =
+  records.filter(
+    (item: typeof records[number]) =>
+      Boolean(
+        item.attendance
+          ?.checkIn
+      ) &&
+      !item.attendance
+        ?.checkOut
+  ).length;
 
-    const checkedOut =
-      records.filter(
-        (item) =>
-          Boolean(
-            item.attendance
-              ?.checkOut
-          )
-      ).length;
+const checkedOut =
+  records.filter(
+    (item: typeof records[number]) =>
+      Boolean(
+        item.attendance
+          ?.checkOut
+      )
+  ).length;
 
     return NextResponse.json({
       success: true,
