@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const totalCollection = opdVisits.reduce(
-  (sum: number, visit) =>
+  (sum: number, visit: { fee: number | null }) =>
     sum + (visit.fee ?? 0),
   0
 );
