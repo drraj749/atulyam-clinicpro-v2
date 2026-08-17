@@ -58,7 +58,8 @@ export async function GET(request: NextRequest) {
   0
 );
 
-    const report = opdVisits.map((visit) => ({
+    const report = opdVisits.map(
+  (visit: typeof opdVisits[number]) => ({
       id: visit.id,
 
       opdNo: visit.opdNo,
@@ -85,7 +86,8 @@ export async function GET(request: NextRequest) {
       paymentMode: visit.paymentMode ?? "",
 
       date: visit.createdAt,
-    }));
+      })
+);
 
     return NextResponse.json({
       success: true,
