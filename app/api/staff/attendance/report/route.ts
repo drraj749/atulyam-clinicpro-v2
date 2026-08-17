@@ -76,17 +76,14 @@ export async function GET(
         : getCurrentMonth();
 
     /**
-     * First day of month
+     * ========================================
+     * MONTH RANGE
+     * ========================================
      */
+
     const monthStart =
       `${month}-01`;
 
-    /**
-     * Last day of month.
-     *
-     * JavaScript Date is used only to
-     * calculate the number of days.
-     */
     const [year, monthNumber] =
       month.split("-").map(Number);
 
@@ -178,41 +175,48 @@ export async function GET(
 
     /**
      * ========================================
+     * EXPLICIT TYPES
+     * ========================================
+     */
+
+    type StaffMember = typeof staff[number];
+
+    type AttendanceRecord =
+      StaffMember["attendance"][number];
+
+    /**
+     * ========================================
      * BUILD STAFF REPORT
      * ========================================
      */
 
     const reports = staff.map(
-      (member) => {
+      (member: StaffMember) => {
         const attendance =
           member.attendance;
 
         const present =
           attendance.filter(
-            (item) =>
-              item.status ===
-              "Present"
+            (item: AttendanceRecord) =>
+              item.status === "Present"
           ).length;
 
         const halfDay =
           attendance.filter(
-            (item) =>
-              item.status ===
-              "Half Day"
+            (item: AttendanceRecord) =>
+              item.status === "Half Day"
           ).length;
 
         const leave =
           attendance.filter(
-            (item) =>
-              item.status ===
-              "Leave"
+            (item: AttendanceRecord) =>
+              item.status === "Leave"
           ).length;
 
         const explicitlyAbsent =
           attendance.filter(
-            (item) =>
-              item.status ===
-              "Absent"
+            (item: AttendanceRecord) =>
+              item.status === "Absent"
           ).length;
 
         /**
@@ -220,6 +224,7 @@ export async function GET(
          *
          * Half Day = 0.5 day
          */
+
         const attendancePoints =
           present +
           halfDay * 0.5;
@@ -227,6 +232,7 @@ export async function GET(
         /**
          * Count recorded attendance
          */
+
         const recordedDays =
           attendance.length;
 
@@ -236,6 +242,7 @@ export async function GET(
          * We keep them separate from
          * explicit "Absent" records.
          */
+
         const unmarkedDays =
           Math.max(
             0,
@@ -253,12 +260,12 @@ export async function GET(
          * If no attendance exists,
          * percentage is 0.
          */
+
         const attendanceDenominator =
           recordedDays;
 
         const attendancePercentage =
-          attendanceDenominator >
-          0
+          attendanceDenominator > 0
             ? Math.round(
                 (attendancePoints /
                   attendanceDenominator) *
@@ -269,10 +276,11 @@ export async function GET(
         /**
          * Total working hours
          */
+
         let totalWorkingMinutes = 0;
 
         attendance.forEach(
-          (item) => {
+          (item: AttendanceRecord) => {
             if (
               item.checkIn &&
               item.checkOut
@@ -357,47 +365,68 @@ export async function GET(
      * ========================================
      */
 
+    type ReportRecord =
+      typeof reports[number];
+
     const totalStaff =
       reports.length;
 
     const totalPresent =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum + item.present,
         0
       );
 
     const totalHalfDay =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum + item.halfDay,
         0
       );
 
     const totalLeave =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum + item.leave,
         0
       );
 
     const totalAbsent =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum + item.absent,
         0
       );
 
     const totalUnmarked =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum + item.unmarked,
         0
       );
 
     const totalWorkingMinutes =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum +
           item.totalWorkingMinutes,
         0
@@ -409,7 +438,10 @@ export async function GET(
 
     const totalRecordedDays =
       reports.reduce(
-        (sum, item) =>
+        (
+          sum: number,
+          item: ReportRecord
+        ) =>
           sum +
           item.recordedDays,
         0

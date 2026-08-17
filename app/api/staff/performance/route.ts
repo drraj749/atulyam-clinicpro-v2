@@ -182,6 +182,18 @@ export async function GET(
 
     /**
      * ========================================
+     * EXPLICIT STAFF TYPES
+     * ========================================
+     */
+
+    type StaffMember =
+      typeof staff[number];
+
+    type AttendanceRecord =
+      StaffMember["attendance"][number];
+
+    /**
+     * ========================================
      * TODAY'S ATTENDANCE
      * ========================================
      */
@@ -205,6 +217,9 @@ export async function GET(
         },
       });
 
+    type TodayAttendanceRecord =
+      typeof todayAttendance[number];
+
     /**
      * ========================================
      * TODAY MAP
@@ -214,11 +229,13 @@ export async function GET(
     const todayMap =
       new Map<
         number,
-        (typeof todayAttendance)[number]
+        TodayAttendanceRecord
       >();
 
     todayAttendance.forEach(
-      (item) => {
+      (
+        item: TodayAttendanceRecord
+      ) => {
         todayMap.set(
           item.staffId,
           item
@@ -245,7 +262,7 @@ export async function GET(
     let todayWorkingMinutes = 0;
 
     staff.forEach(
-      (member) => {
+      (member: StaffMember) => {
         const attendance =
           todayMap.get(
             member.id
@@ -336,208 +353,229 @@ export async function GET(
      */
 
     const performance =
-      staff.map((member) => {
-        const records =
-          member.attendance;
+      staff.map(
+        (member: StaffMember) => {
+          const records =
+            member.attendance;
 
-        const present =
-          records.filter(
-            (item) =>
-              item.status ===
-              "Present"
-          ).length;
+          const present =
+            records.filter(
+              (
+                item: AttendanceRecord
+              ) =>
+                item.status ===
+                "Present"
+            ).length;
 
-        const halfDay =
-          records.filter(
-            (item) =>
-              item.status ===
-              "Half Day"
-          ).length;
+          const halfDay =
+            records.filter(
+              (
+                item: AttendanceRecord
+              ) =>
+                item.status ===
+                "Half Day"
+            ).length;
 
-        const leave =
-          records.filter(
-            (item) =>
-              item.status ===
-              "Leave"
-          ).length;
+          const leave =
+            records.filter(
+              (
+                item: AttendanceRecord
+              ) =>
+                item.status ===
+                "Leave"
+            ).length;
 
-        const absent =
-          records.filter(
-            (item) =>
-              item.status ===
-              "Absent"
-          ).length;
+          const absent =
+            records.filter(
+              (
+                item: AttendanceRecord
+              ) =>
+                item.status ===
+                "Absent"
+            ).length;
 
-        const recordedDays =
-          records.length;
+          const recordedDays =
+            records.length;
 
-        const unmarked =
-          Math.max(
-            0,
-            daysInMonth -
-              recordedDays
-          );
+          const unmarked =
+            Math.max(
+              0,
+              daysInMonth -
+                recordedDays
+            );
 
-        /**
-         * Half day = 0.5
-         */
+          /**
+           * Half day = 0.5
+           */
 
-        const attendancePoints =
-          present +
-          halfDay * 0.5;
+          const attendancePoints =
+            present +
+            halfDay * 0.5;
 
-        const attendancePercentage =
-          recordedDays > 0
-            ? Math.round(
-                (attendancePoints /
-                  recordedDays) *
-                  100
-              )
-            : 0;
+          const attendancePercentage =
+            recordedDays > 0
+              ? Math.round(
+                  (attendancePoints /
+                    recordedDays) *
+                    100
+                )
+              : 0;
 
-        /**
-         * Working hours
-         */
+          /**
+           * Working hours
+           */
 
-        let workingMinutes = 0;
+          let workingMinutes = 0;
 
-        records.forEach(
-          (record) => {
-            if (
-              record.checkIn &&
-              record.checkOut
-            ) {
-              const difference =
-                new Date(
-                  record.checkOut
-                ).getTime() -
-                new Date(
-                  record.checkIn
-                ).getTime();
-
+          records.forEach(
+            (
+              record: AttendanceRecord
+            ) => {
               if (
-                difference > 0
+                record.checkIn &&
+                record.checkOut
               ) {
-                workingMinutes +=
-                  Math.floor(
-                    difference /
-                      60000
-                  );
+                const difference =
+                  new Date(
+                    record.checkOut
+                  ).getTime() -
+                  new Date(
+                    record.checkIn
+                  ).getTime();
+
+                if (
+                  difference > 0
+                ) {
+                  workingMinutes +=
+                    Math.floor(
+                      difference /
+                        60000
+                    );
+                }
               }
             }
-          }
-        );
-
-        const hours =
-          Math.floor(
-            workingMinutes /
-              60
           );
 
-        const minutes =
-          workingMinutes % 60;
+          const hours =
+            Math.floor(
+              workingMinutes /
+                60
+            );
 
-        /**
-         * Today's status
-         */
+          const minutes =
+            workingMinutes % 60;
 
-        const today =
-          todayMap.get(
-            member.id
-          );
+          /**
+           * Today's status
+           */
 
-        let todayWorkingMinutes =
-          0;
+          const todayRecord =
+            todayMap.get(
+              member.id
+            );
 
-        if (
-          today?.checkIn
-        ) {
-          const end =
-            today.checkOut
-              ? new Date(
-                  today.checkOut
-                ).getTime()
-              : Date.now();
+          let todayWorkingMinutes =
+            0;
 
-          const start =
-            new Date(
-              today.checkIn
-            ).getTime();
+          if (
+            todayRecord?.checkIn
+          ) {
+            const end =
+              todayRecord.checkOut
+                ? new Date(
+                    todayRecord.checkOut
+                  ).getTime()
+                : Date.now();
 
-          if (end > start) {
-            todayWorkingMinutes =
-              Math.floor(
-                (end - start) /
-                  60000
-              );
+            const start =
+              new Date(
+                todayRecord.checkIn
+              ).getTime();
+
+            if (end > start) {
+              todayWorkingMinutes =
+                Math.floor(
+                  (end - start) /
+                    60000
+                );
+            }
           }
+
+          const todayHours =
+            Math.floor(
+              todayWorkingMinutes /
+                60
+            );
+
+          const todayMinutes =
+            todayWorkingMinutes %
+            60;
+
+          return {
+            staffId:
+              member.id,
+
+            staffCode:
+              member.staffCode,
+
+            name:
+              member.name,
+
+            role:
+              member.role,
+
+            mobile:
+              member.mobile,
+
+            joiningDate:
+              member.joiningDate,
+
+            todayStatus:
+              todayRecord?.status ||
+              "Unmarked",
+
+            todayCheckIn:
+              todayRecord?.checkIn ||
+              null,
+
+            todayCheckOut:
+              todayRecord?.checkOut ||
+              null,
+
+            todayWorkingHours:
+              `${todayHours}h ${todayMinutes}m`,
+
+            present,
+
+            halfDay,
+
+            leave,
+
+            absent,
+
+            unmarked,
+
+            recordedDays,
+
+            attendancePercentage,
+
+            totalWorkingMinutes:
+              workingMinutes,
+
+            totalWorkingHours:
+              `${hours}h ${minutes}m`,
+          };
         }
+      );
 
-        const todayHours =
-          Math.floor(
-            todayWorkingMinutes /
-              60
-          );
+    /**
+     * ========================================
+     * PERFORMANCE TYPES
+     * ========================================
+     */
 
-        const todayMinutes =
-          todayWorkingMinutes %
-          60;
-
-        return {
-          staffId:
-            member.id,
-
-          staffCode:
-            member.staffCode,
-
-          name:
-            member.name,
-
-          role:
-            member.role,
-
-          mobile:
-            member.mobile,
-
-          joiningDate:
-            member.joiningDate,
-
-          todayStatus:
-            today?.status ||
-            "Unmarked",
-
-          todayCheckIn:
-            today?.checkIn ||
-            null,
-
-          todayCheckOut:
-            today?.checkOut ||
-            null,
-
-          todayWorkingHours:
-            `${todayHours}h ${todayMinutes}m`,
-
-          present,
-
-          halfDay,
-
-          leave,
-
-          absent,
-
-          unmarked,
-
-          recordedDays,
-
-          attendancePercentage,
-
-          totalWorkingMinutes:
-            workingMinutes,
-
-          totalWorkingHours:
-            `${hours}h ${minutes}m`,
-        };
-      });
+    type PerformanceRecord =
+      typeof performance[number];
 
     /**
      * ========================================
@@ -547,7 +585,10 @@ export async function GET(
 
     const totalMonthlyWorkingMinutes =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum +
           member.totalWorkingMinutes,
         0
@@ -571,42 +612,60 @@ export async function GET(
 
     const totalPresent =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum + member.present,
         0
       );
 
     const totalHalfDay =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum + member.halfDay,
         0
       );
 
     const totalLeave =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum + member.leave,
         0
       );
 
     const totalAbsent =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum + member.absent,
         0
       );
 
     const totalUnmarked =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum + member.unmarked,
         0
       );
 
     const totalRecorded =
       performance.reduce(
-        (sum, member) =>
+        (
+          sum: number,
+          member: PerformanceRecord
+        ) =>
           sum +
           member.recordedDays,
         0
@@ -639,6 +698,12 @@ export async function GET(
 
     const todayMinutes =
       todayWorkingMinutes % 60;
+
+    /**
+     * ========================================
+     * RESPONSE
+     * ========================================
+     */
 
     return NextResponse.json({
       success: true,
