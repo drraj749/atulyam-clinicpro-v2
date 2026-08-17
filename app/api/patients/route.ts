@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../lib/prisma";
-import { Prisma } from "@prisma/client";
 
 function generateUHID() {
   const d = new Date();
@@ -20,7 +19,9 @@ export async function GET(request: Request) {
 
     const status = searchParams.get("status") ?? "active";
 
-    const where: Prisma.PatientWhereInput = {};
+    const where: {
+  isActive?: boolean;
+} = {};
 
     if (status === "active") {
       where.isActive = true;
