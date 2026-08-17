@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import type { MedicineRow } from "@/types/opd";
+import type { PrismaClient } from "@prisma/client";
+
+type TransactionClient = Parameters<
+  PrismaClient["$transaction"]
+>[0] extends (
+  tx: infer T
+) => unknown
+  ? T
+  : never;
 
 export async function GET(
   request: NextRequest,
@@ -140,7 +149,8 @@ if (!body.diagnosis?.trim()) {
       );
     }
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(
+  async (tx: TransactionClient) => {
 
       await tx.opdVisit.update({
         where: {
