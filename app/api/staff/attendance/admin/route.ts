@@ -127,7 +127,7 @@ export async function GET(
      */
 
     const records = staff.map(
-      (item) => {
+  (item: typeof staff[number]) => {
         const attendance =
           item.attendance[0] ||
           null;
