@@ -6,17 +6,12 @@ import { useRouter } from "next/navigation";
 export default function StaffLoginPage() {
   const router = useRouter();
 
-  const [username, setUsername] =
-    useState("");
-
-  const [password, setPassword] =
-    useState("");
-
-  const [loading, setLoading] =
-    useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin(
-    e: React.FormEvent
+    e: React.FormEvent<HTMLFormElement>
   ) {
     e.preventDefault();
 
@@ -33,55 +28,61 @@ export default function StaffLoginPage() {
     setLoading(true);
 
     try {
-      const response =
-        await fetch(
-          "/api/staff/login",
-          {
-            method: "POST",
+      const response = await fetch(
+        "/api/staff/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            username: username.trim().toLowerCase(),
+            password,
+          }),
+        }
+      );
 
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-
-            body: JSON.stringify({
-              username:
-                username.trim().toLowerCase(),
-
-              password,
-            }),
-          }
-        );
-
-      const result =
-        await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
         alert(
           result.message ||
             "Login failed."
         );
-
         return;
       }
 
       /*
-       * Login successful.
+       * IMPORTANT
        *
-       * Your existing dashboard is:
+       * The staff dashboard currently checks
+       * localStorage for "staffSession".
        *
-       * app/staff-dashboard/page.tsx
-       *
-       * Therefore the correct URL is:
-       *
-       * /staff-dashboard
+       * Therefore we MUST save the logged-in
+       * staff information before redirecting.
        */
 
-      router.push(
-        "/staff-dashboard"
+      if (!result.staff) {
+        alert(
+          "Login successful, but staff information was not returned."
+        );
+        return;
+      }
+
+      localStorage.setItem(
+        "staffSession",
+        JSON.stringify(result.staff)
       );
 
-      router.refresh();
+      /*
+       * Give the browser a moment to persist
+       * localStorage before navigation.
+       */
+
+      router.replace(
+        "/staff-dashboard"
+      );
 
     } catch (error) {
       console.error(
@@ -92,7 +93,6 @@ export default function StaffLoginPage() {
       alert(
         "Unable to connect to server."
       );
-
     } finally {
       setLoading(false);
     }
@@ -117,7 +117,7 @@ export default function StaffLoginPage() {
 
         </div>
 
-        {/* LOGIN CARD */}
+        {/* LOGIN FORM */}
 
         <form
           onSubmit={handleLogin}
@@ -128,17 +128,19 @@ export default function StaffLoginPage() {
 
           <div className="mb-5">
 
-            <label className="block font-semibold mb-2">
+            <label
+              htmlFor="username"
+              className="block font-semibold mb-2"
+            >
               Username
             </label>
 
             <input
+              id="username"
               type="text"
               value={username}
               onChange={(e) =>
-                setUsername(
-                  e.target.value
-                )
+                setUsername(e.target.value)
               }
               placeholder="Enter username"
               autoComplete="username"
@@ -153,17 +155,19 @@ export default function StaffLoginPage() {
 
           <div className="mb-6">
 
-            <label className="block font-semibold mb-2">
+            <label
+              htmlFor="password"
+              className="block font-semibold mb-2"
+            >
               Password
             </label>
 
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) =>
-                setPassword(
-                  e.target.value
-                )
+                setPassword(e.target.value)
               }
               placeholder="Enter password"
               autoComplete="current-password"
@@ -189,6 +193,10 @@ export default function StaffLoginPage() {
 
           <p className="text-center text-sm text-gray-500 mt-6">
             Atulyam Hospital • Born To Serve
+          </p>
+
+          <p className="text-center text-xs text-gray-400 mt-2">
+            Authorized Staff Only
           </p>
 
         </form>
