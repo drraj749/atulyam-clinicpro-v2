@@ -1,21 +1,9 @@
-import LabOrderForm from "@/app/components/laboratory/LabOrderForm";
-import LabOrderTable from "@/app/components/laboratory/LabOrderTable";
-import LabReportEntry from "@/app/components/laboratory/LabReportEntry";
-import LabTestForm from "@/app/components/laboratory/LabTestForm";
-import LabTestTable from "@/app/components/laboratory/LabTestTable";
+import LabSampleCollection from "@/app/components/laboratory/LabSampleCollection";
 
 export default function LaboratoryPage() {
   return (
-    <main className="p-8 space-y-8">
-      <LabOrderForm />
-
-      <LabOrderTable />
-
-      <LabReportEntry />
-
-      <LabTestForm />
-
-      <LabTestTable />
+    <main className="min-h-screen bg-gray-100 p-4 md:p-8">
+      <LabSampleCollection />
     </main>
   );
 }

@@ -183,6 +183,15 @@ model LabOrderItem {
   test    LabTest  @relation(fields: [testId], references: [id])
 }
 
+model LabSampleCollection {
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  patientName String
+  testName    String
+  cost        Float
+  labName     String
+}
+
 model HospitalSettings {
   id                 Int      @id @default(1)
   hospitalName       String
@@ -227,16 +236,29 @@ model Attendance {
   id             Int       @id @default(autoincrement())
   staffId        Int
   attendanceDate String
-  status         String    @default("Present")
+  status         String
   checkIn        DateTime?
   checkOut       DateTime?
   remarks        String?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  staff          Staff     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  checkInLatitude       Float?
+  checkInLongitude      Float?
+  checkInAccuracy       Float?
+  checkInDistanceMeters Float?
+
+  checkOutLatitude       Float?
+  checkOutLongitude      Float?
+  checkOutAccuracy       Float?
+  checkOutDistanceMeters Float?
+
+  locationVerified Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  staff Staff @relation(fields: [staffId], references: [id])
 
   @@unique([staffId, attendanceDate])
-  @@index([attendanceDate])
 }
 
 model StaffSession {
