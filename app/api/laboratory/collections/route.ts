@@ -15,12 +15,16 @@ export async function GET() {
       collections,
     });
   } catch (error) {
-    console.error(error);
+    console.error(
+      "LAB COLLECTION GET ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to load lab sample records.",
+        message:
+          "Unable to load lab sample records.",
       },
       {
         status: 500,
@@ -29,15 +33,42 @@ export async function GET() {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest
+) {
   try {
-    const body = await request.json();
+    const body =
+      await request.json();
 
-    if (!body.collectionDate) {
+    const date =
+      String(
+        body.date ?? ""
+      ).trim();
+
+    const patientName =
+      String(
+        body.patientName ?? ""
+      ).trim();
+
+    const testName =
+      String(
+        body.testName ?? ""
+      ).trim();
+
+    const labName =
+      String(
+        body.labName ?? ""
+      ).trim();
+
+    const cost =
+      Number(body.cost);
+
+    if (!date) {
       return NextResponse.json(
         {
           success: false,
-          message: "Date is required.",
+          message:
+            "Date is required.",
         },
         {
           status: 400,
@@ -45,11 +76,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.patientName?.trim()) {
+    if (!patientName) {
       return NextResponse.json(
         {
           success: false,
-          message: "Patient name is required.",
+          message:
+            "Patient name is required.",
         },
         {
           status: 400,
@@ -57,11 +89,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.testName?.trim()) {
+    if (!testName) {
       return NextResponse.json(
         {
           success: false,
-          message: "Test name is required.",
+          message:
+            "Test name is required.",
         },
         {
           status: 400,
@@ -72,12 +105,15 @@ export async function POST(request: NextRequest) {
     if (
       body.cost === undefined ||
       body.cost === null ||
-      body.cost === ""
+      body.cost === "" ||
+      !Number.isFinite(cost) ||
+      cost < 0
     ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Cost is required.",
+          message:
+            "Please enter a valid cost.",
         },
         {
           status: 400,
@@ -85,13 +121,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cost = Number(body.cost);
-
-    if (Number.isNaN(cost) || cost < 0) {
+    if (!labName) {
       return NextResponse.json(
         {
           success: false,
-          message: "Please enter a valid cost.",
+          message:
+            "Lab name is required.",
         },
         {
           status: 400,
@@ -99,11 +134,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.labName?.trim()) {
+    const parsedDate =
+      new Date(
+        `${date}T00:00:00`
+      );
+
+    if (
+      Number.isNaN(
+        parsedDate.getTime()
+      )
+    ) {
       return NextResponse.json(
         {
           success: false,
-          message: "Lab name is required.",
+          message:
+            "Invalid date.",
         },
         {
           status: 400,
@@ -112,31 +157,38 @@ export async function POST(request: NextRequest) {
     }
 
     const collection =
-      await prisma.labSampleCollection.create({
-        data: {
-          date: new Date(body.collectionDate),
+      await prisma.labSampleCollection.create(
+        {
+          data: {
+            date: parsedDate,
+            patientName,
+            testName,
+            cost,
+            labName,
+          },
+        }
+      );
 
-          patientName: body.patientName.trim(),
-
-          testName: body.testName.trim(),
-
-          cost,
-
-          labName: body.labName.trim(),
-        },
-      });
-
-    return NextResponse.json({
-      success: true,
-      collection,
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        collection,
+      },
+      {
+        status: 201,
+      }
+    );
   } catch (error) {
-    console.error(error);
+    console.error(
+      "LAB COLLECTION POST ERROR:",
+      error
+    );
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to save lab sample record.",
+        message:
+          "Unable to save lab sample record.",
       },
       {
         status: 500,
