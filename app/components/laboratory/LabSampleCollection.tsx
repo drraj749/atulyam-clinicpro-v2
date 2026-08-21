@@ -48,7 +48,7 @@ export default function LabSampleCollection() {
       setLoading(true);
 
       const response = await fetch(
-        "/api/lab-sample-collections",
+        "/api/laboratory/collections",
         {
           cache: "no-store",
         }
@@ -112,27 +112,25 @@ export default function LabSampleCollection() {
 
     try {
       const response = await fetch(
-        "/api/lab-sample-collections",
+        "/api/laboratory/collections",
         {
           method: "POST",
 
           headers: {
-            "Content-Type":
-              "application/json",
+            "Content-Type": "application/json",
           },
 
           body: JSON.stringify({
             date,
-            patientName,
-            testName,
+            patientName: patientName.trim(),
+            testName: testName.trim(),
             cost: Number(cost),
             labName,
           }),
         }
       );
 
-      const result =
-        await response.json();
+      const result = await response.json();
 
       if (!response.ok) {
         alert(
@@ -314,7 +312,6 @@ export default function LabSampleCollection() {
           <table className="w-full min-w-[800px]">
 
             <thead className="bg-gray-50 border-b">
-
               <tr>
 
                 <th className="text-left px-5 py-3 text-sm font-semibold">
@@ -338,13 +335,11 @@ export default function LabSampleCollection() {
                 </th>
 
               </tr>
-
             </thead>
 
             <tbody>
 
               {loading ? (
-
                 <tr>
                   <td
                     colSpan={5}
@@ -368,7 +363,6 @@ export default function LabSampleCollection() {
               ) : (
 
                 records.map((record) => (
-
                   <tr
                     key={record.id}
                     className="border-b last:border-b-0 hover:bg-gray-50"
@@ -395,7 +389,6 @@ export default function LabSampleCollection() {
                     </td>
 
                   </tr>
-
                 ))
 
               )}
