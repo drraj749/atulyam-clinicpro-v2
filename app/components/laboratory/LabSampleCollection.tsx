@@ -26,22 +26,60 @@ function getTodayDate() {
   const today = new Date();
 
   const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const day = String(today.getDate()).padStart(2, "0");
+  const month = String(
+    today.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    today.getDate()
+  ).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function getDateForInput(value: string) {
+  const parsedDate = new Date(value);
+
+  const year = parsedDate.getFullYear();
+
+  const month = String(
+    parsedDate.getMonth() + 1
+  ).padStart(2, "0");
+
+  const day = String(
+    parsedDate.getDate()
+  ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
 
 export default function LabSampleCollection() {
-  const [records, setRecords] = useState<LabCollection[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [records, setRecords] =
+    useState<LabCollection[]>([]);
 
-  const [date, setDate] = useState(getTodayDate());
-  const [patientName, setPatientName] = useState("");
-  const [testName, setTestName] = useState("");
-  const [cost, setCost] = useState("");
-  const [labName, setLabName] = useState("");
+  const [loading, setLoading] =
+    useState(true);
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [editingId, setEditingId] =
+    useState<number | null>(null);
+
+  const [date, setDate] =
+    useState(getTodayDate());
+
+  const [patientName, setPatientName] =
+    useState("");
+
+  const [testName, setTestName] =
+    useState("");
+
+  const [cost, setCost] =
+    useState("");
+
+  const [labName, setLabName] =
+    useState("");
 
   async function loadRecords() {
     try {
@@ -54,21 +92,27 @@ export default function LabSampleCollection() {
         }
       );
 
-      const result = await response.json();
+      const result =
+        await response.json();
 
       if (!response.ok) {
         alert(
           result.message ||
             "Unable to load records."
         );
+
         return;
       }
 
-      setRecords(result.collections || []);
+      setRecords(
+        result.collections || []
+      );
     } catch (error) {
       console.error(error);
 
-      alert("Unable to connect to server.");
+      alert(
+        "Unable to connect to server."
+      );
     } finally {
       setLoading(false);
     }
@@ -77,6 +121,51 @@ export default function LabSampleCollection() {
   useEffect(() => {
     loadRecords();
   }, []);
+
+  function resetForm() {
+    setEditingId(null);
+
+    setDate(getTodayDate());
+
+    setPatientName("");
+
+    setTestName("");
+
+    setCost("");
+
+    setLabName("");
+  }
+
+  function handleEdit(
+    record: LabCollection
+  ) {
+    setEditingId(record.id);
+
+    setDate(
+      getDateForInput(record.date)
+    );
+
+    setPatientName(
+      record.patientName
+    );
+
+    setTestName(
+      record.testName
+    );
+
+    setCost(
+      String(record.cost)
+    );
+
+    setLabName(
+      record.labName
+    );
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
 
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>
@@ -89,77 +178,118 @@ export default function LabSampleCollection() {
     }
 
     if (!patientName.trim()) {
-      alert("Please enter patient name.");
+      alert(
+        "Please enter patient name."
+      );
+
       return;
     }
 
     if (!testName.trim()) {
-      alert("Please enter test name.");
+      alert(
+        "Please enter test name."
+      );
+
       return;
     }
 
-    if (!cost || Number(cost) < 0) {
-      alert("Please enter a valid cost.");
+    if (
+      cost === "" ||
+      Number(cost) < 0 ||
+      !Number.isFinite(Number(cost))
+    ) {
+      alert(
+        "Please enter a valid cost."
+      );
+
       return;
     }
 
     if (!labName) {
-      alert("Please select lab name.");
+      alert(
+        "Please select lab name."
+      );
+
       return;
     }
 
     setSaving(true);
 
     try {
+      const requestBody = {
+        date,
+        patientName:
+          patientName.trim(),
+        testName:
+          testName.trim(),
+        cost: Number(cost),
+        labName,
+      };
+
       const response = await fetch(
         "/api/laboratory/collections",
         {
-          method: "POST",
+          method: editingId
+            ? "PUT"
+            : "POST",
 
           headers: {
-            "Content-Type": "application/json",
+            "Content-Type":
+              "application/json",
           },
 
-          body: JSON.stringify({
-            date,
-            patientName: patientName.trim(),
-            testName: testName.trim(),
-            cost: Number(cost),
-            labName,
-          }),
+          body: JSON.stringify(
+            editingId
+              ? {
+                  ...requestBody,
+                  id: editingId,
+                }
+              : requestBody
+          ),
         }
       );
 
-      const result = await response.json();
+      const result =
+        await response.json();
 
       if (!response.ok) {
         alert(
           result.message ||
             "Unable to save record."
         );
+
         return;
       }
 
-      setDate(getTodayDate());
-      setPatientName("");
-      setTestName("");
-      setCost("");
-      setLabName("");
+      const wasEditing =
+        editingId !== null;
+
+      resetForm();
 
       await loadRecords();
 
-      alert("Lab sample record saved successfully.");
+      alert(
+        wasEditing
+          ? "Lab sample record updated successfully."
+          : "Lab sample record saved successfully."
+      );
     } catch (error) {
       console.error(error);
 
-      alert("Unable to connect to server.");
+      alert(
+        "Unable to connect to server."
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  function formatDate(value: string) {
-    return new Date(value).toLocaleDateString(
+  function formatDate(
+    value: string
+  ) {
+    return new Date(
+      value
+    ).toLocaleDateString(
       "en-IN",
       {
         day: "2-digit",
@@ -175,13 +305,19 @@ export default function LabSampleCollection() {
       <div className="bg-white rounded-xl shadow-sm border p-5">
 
         <div className="mb-5">
+
           <h2 className="text-xl font-bold text-gray-900">
-            Lab Sample Collection
+            {editingId
+              ? "Edit Lab Sample Record"
+              : "Lab Sample Collection"}
           </h2>
 
           <p className="text-sm text-gray-500 mt-1">
-            Record samples collected and sent to laboratory.
+            {editingId
+              ? "Correct the information and update the record."
+              : "Record samples collected and sent to laboratory."}
           </p>
+
         </div>
 
         <form
@@ -189,9 +325,10 @@ export default function LabSampleCollection() {
           className="overflow-x-auto"
         >
 
-          <div className="min-w-[900px] grid grid-cols-[150px_1fr_1fr_140px_180px_130px] gap-3 items-end">
+          <div className="min-w-[1050px] grid grid-cols-[150px_1fr_1fr_140px_180px_130px_120px] gap-3 items-end">
 
             <div>
+
               <label className="block text-sm font-medium mb-2">
                 Date
               </label>
@@ -200,13 +337,17 @@ export default function LabSampleCollection() {
                 type="date"
                 value={date}
                 onChange={(event) =>
-                  setDate(event.target.value)
+                  setDate(
+                    event.target.value
+                  )
                 }
                 className="w-full border rounded-lg px-3 py-2.5"
               />
+
             </div>
 
             <div>
+
               <label className="block text-sm font-medium mb-2">
                 Patient Name
               </label>
@@ -215,14 +356,18 @@ export default function LabSampleCollection() {
                 type="text"
                 value={patientName}
                 onChange={(event) =>
-                  setPatientName(event.target.value)
+                  setPatientName(
+                    event.target.value
+                  )
                 }
                 placeholder="Enter patient name"
                 className="w-full border rounded-lg px-3 py-2.5"
               />
+
             </div>
 
             <div>
+
               <label className="block text-sm font-medium mb-2">
                 Test Name
               </label>
@@ -231,14 +376,18 @@ export default function LabSampleCollection() {
                 type="text"
                 value={testName}
                 onChange={(event) =>
-                  setTestName(event.target.value)
+                  setTestName(
+                    event.target.value
+                  )
                 }
                 placeholder="Enter test name"
                 className="w-full border rounded-lg px-3 py-2.5"
               />
+
             </div>
 
             <div>
+
               <label className="block text-sm font-medium mb-2">
                 Cost
               </label>
@@ -249,14 +398,18 @@ export default function LabSampleCollection() {
                 step="0.01"
                 value={cost}
                 onChange={(event) =>
-                  setCost(event.target.value)
+                  setCost(
+                    event.target.value
+                  )
                 }
                 placeholder="₹ Amount"
                 className="w-full border rounded-lg px-3 py-2.5"
               />
+
             </div>
 
             <div>
+
               <label className="block text-sm font-medium mb-2">
                 Lab Name
               </label>
@@ -264,23 +417,30 @@ export default function LabSampleCollection() {
               <select
                 value={labName}
                 onChange={(event) =>
-                  setLabName(event.target.value)
+                  setLabName(
+                    event.target.value
+                  )
                 }
                 className="w-full border rounded-lg px-3 py-2.5 bg-white"
               >
+
                 <option value="">
                   Select Lab
                 </option>
 
-                {LABS.map((lab) => (
-                  <option
-                    key={lab}
-                    value={lab}
-                  >
-                    {lab}
-                  </option>
-                ))}
+                {LABS.map(
+                  (lab) => (
+                    <option
+                      key={lab}
+                      value={lab}
+                    >
+                      {lab}
+                    </option>
+                  )
+                )}
+
               </select>
+
             </div>
 
             <button
@@ -289,9 +449,34 @@ export default function LabSampleCollection() {
               className="w-full bg-blue-700 hover:bg-blue-800 disabled:bg-gray-400 text-white rounded-lg px-4 py-2.5 font-semibold"
             >
               {saving
-                ? "Saving..."
-                : "Save Record"}
+                ? editingId
+                  ? "Updating..."
+                  : "Saving..."
+                : editingId
+                  ? "Update Record"
+                  : "Save Record"}
             </button>
+
+            <div>
+
+              {editingId ? (
+
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={saving}
+                  className="w-full bg-gray-500 hover:bg-gray-600 disabled:bg-gray-400 text-white rounded-lg px-4 py-2.5 font-semibold"
+                >
+                  Cancel
+                </button>
+
+              ) : (
+
+                <div className="h-[46px]" />
+
+              )}
+
+            </div>
 
           </div>
 
@@ -302,16 +487,19 @@ export default function LabSampleCollection() {
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
 
         <div className="p-5 border-b">
+
           <h2 className="text-xl font-bold text-gray-900">
             Sample Collection Records
           </h2>
+
         </div>
 
         <div className="overflow-x-auto">
 
-          <table className="w-full min-w-[800px]">
+          <table className="w-full min-w-[950px]">
 
             <thead className="bg-gray-50 border-b">
+
               <tr>
 
                 <th className="text-left px-5 py-3 text-sm font-semibold">
@@ -334,62 +522,98 @@ export default function LabSampleCollection() {
                   Lab Name
                 </th>
 
+                <th className="text-left px-5 py-3 text-sm font-semibold">
+                  Action
+                </th>
+
               </tr>
+
             </thead>
 
             <tbody>
 
               {loading ? (
+
                 <tr>
+
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="text-center py-8 text-gray-500"
                   >
                     Loading records...
                   </td>
+
                 </tr>
 
               ) : records.length === 0 ? (
 
                 <tr>
+
                   <td
-                    colSpan={5}
+                    colSpan={6}
                     className="text-center py-8 text-gray-500"
                   >
                     No sample collection records yet.
                   </td>
+
                 </tr>
 
               ) : (
 
-                records.map((record) => (
-                  <tr
-                    key={record.id}
-                    className="border-b last:border-b-0 hover:bg-gray-50"
-                  >
+                records.map(
+                  (record) => (
 
-                    <td className="px-5 py-4">
-                      {formatDate(record.date)}
-                    </td>
+                    <tr
+                      key={record.id}
+                      className="border-b last:border-b-0 hover:bg-gray-50"
+                    >
 
-                    <td className="px-5 py-4 font-medium">
-                      {record.patientName}
-                    </td>
+                      <td className="px-5 py-4">
+                        {formatDate(
+                          record.date
+                        )}
+                      </td>
 
-                    <td className="px-5 py-4">
-                      {record.testName}
-                    </td>
+                      <td className="px-5 py-4 font-medium">
+                        {record.patientName}
+                      </td>
 
-                    <td className="px-5 py-4 font-semibold">
-                      ₹ {Number(record.cost).toFixed(2)}
-                    </td>
+                      <td className="px-5 py-4">
+                        {record.testName}
+                      </td>
 
-                    <td className="px-5 py-4">
-                      {record.labName}
-                    </td>
+                      <td className="px-5 py-4 font-semibold">
+                        ₹{" "}
+                        {Number(
+                          record.cost
+                        ).toFixed(2)}
+                      </td>
 
-                  </tr>
-                ))
+                      <td className="px-5 py-4">
+                        {record.labName}
+                      </td>
+
+                      <td className="px-5 py-4">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleEdit(
+                              record
+                            )
+                          }
+                          disabled={saving}
+                          className="bg-amber-500 hover:bg-amber-600 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-semibold"
+                        >
+                          Edit
+                        </button>
+
+                      </td>
+
+                    </tr>
+
+                  )
+                )
 
               )}
 
