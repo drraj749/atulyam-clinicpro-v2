@@ -184,12 +184,18 @@ model LabOrderItem {
 }
 
 model LabSampleCollection {
-  id          Int      @id @default(autoincrement())
-  date        DateTime
-  patientName String
-  testName    String
-  cost        Float
-  labName     String
+  id              Int      @id @default(autoincrement())
+  date            DateTime
+  patientName     String
+  testName        String
+  cost            Float
+  labName         String
+
+  sstBarcode      String?
+  edtaBarcode     String?
+  fluorideBarcode String?
+  urineBarcode    String?
+  sputumBarcode   String?
 }
 
 model HospitalSettings {

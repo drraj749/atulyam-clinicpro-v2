@@ -9,6 +9,12 @@ type LabCollection = {
   testName: string;
   cost: number;
   labName: string;
+
+  sstBarcode: string | null;
+  edtaBarcode: string | null;
+  fluorideBarcode: string | null;
+  urineBarcode: string | null;
+  sputumBarcode: string | null;
 };
 
 const LABS = [
@@ -26,6 +32,7 @@ function getTodayDate() {
   const today = new Date();
 
   const year = today.getFullYear();
+
   const month = String(
     today.getMonth() + 1
   ).padStart(2, "0");
@@ -51,6 +58,10 @@ function getDateForInput(value: string) {
   ).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
+}
+
+function isValidBarcode(value: string) {
+  return /^[A-Z]{2}[0-9]{6}$/.test(value);
 }
 
 export default function LabSampleCollection() {
@@ -79,6 +90,21 @@ export default function LabSampleCollection() {
     useState("");
 
   const [labName, setLabName] =
+    useState("");
+
+  const [sstBarcode, setSstBarcode] =
+    useState("");
+
+  const [edtaBarcode, setEdtaBarcode] =
+    useState("");
+
+  const [fluorideBarcode, setFluorideBarcode] =
+    useState("");
+
+  const [urineBarcode, setUrineBarcode] =
+    useState("");
+
+  const [sputumBarcode, setSputumBarcode] =
     useState("");
 
   async function loadRecords() {
@@ -134,6 +160,16 @@ export default function LabSampleCollection() {
     setCost("");
 
     setLabName("");
+
+    setSstBarcode("");
+
+    setEdtaBarcode("");
+
+    setFluorideBarcode("");
+
+    setUrineBarcode("");
+
+    setSputumBarcode("");
   }
 
   function handleEdit(
@@ -161,10 +197,39 @@ export default function LabSampleCollection() {
       record.labName
     );
 
+    setSstBarcode(
+      record.sstBarcode || ""
+    );
+
+    setEdtaBarcode(
+      record.edtaBarcode || ""
+    );
+
+    setFluorideBarcode(
+      record.fluorideBarcode || ""
+    );
+
+    setUrineBarcode(
+      record.urineBarcode || ""
+    );
+
+    setSputumBarcode(
+      record.sputumBarcode || ""
+    );
+
     window.scrollTo({
       top: 0,
       behavior: "smooth",
     });
+  }
+
+  function formatBarcodeInput(
+    value: string
+  ) {
+    return value
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "")
+      .slice(0, 8);
   }
 
   async function handleSubmit(
@@ -213,17 +278,87 @@ export default function LabSampleCollection() {
       return;
     }
 
+    if (labName === "Thyrocare") {
+      const barcodes = [
+        {
+          name: "SST",
+          value: sstBarcode.trim(),
+        },
+        {
+          name: "EDTA",
+          value: edtaBarcode.trim(),
+        },
+        {
+          name: "Fluoride",
+          value: fluorideBarcode.trim(),
+        },
+        {
+          name: "Urine",
+          value: urineBarcode.trim(),
+        },
+        {
+          name: "Sputum",
+          value: sputumBarcode.trim(),
+        },
+      ];
+
+      for (const barcode of barcodes) {
+        if (
+          barcode.value &&
+          !isValidBarcode(
+            barcode.value
+          )
+        ) {
+          alert(
+            `${barcode.name} barcode must contain exactly 2 capital letters followed by 6 numbers. Example: AB123456`
+          );
+
+          return;
+        }
+      }
+    }
+
     setSaving(true);
 
     try {
       const requestBody = {
         date,
+
         patientName:
           patientName.trim(),
+
         testName:
           testName.trim(),
-        cost: Number(cost),
+
+        cost:
+          Number(cost),
+
         labName,
+
+        sstBarcode:
+          labName === "Thyrocare"
+            ? sstBarcode.trim() || null
+            : null,
+
+        edtaBarcode:
+          labName === "Thyrocare"
+            ? edtaBarcode.trim() || null
+            : null,
+
+        fluorideBarcode:
+          labName === "Thyrocare"
+            ? fluorideBarcode.trim() || null
+            : null,
+
+        urineBarcode:
+          labName === "Thyrocare"
+            ? urineBarcode.trim() || null
+            : null,
+
+        sputumBarcode:
+          labName === "Thyrocare"
+            ? sputumBarcode.trim() || null
+            : null,
       };
 
       const response = await fetch(
@@ -477,6 +612,129 @@ export default function LabSampleCollection() {
               )}
 
             </div>
+
+            {labName === "Thyrocare" && (
+
+              <div className="col-span-full grid grid-cols-1 md:grid-cols-5 gap-3 border rounded-lg p-4 bg-blue-50">
+
+                <div>
+
+                  <label className="block text-sm font-semibold mb-2">
+                    SST Barcode
+                  </label>
+
+                  <input
+                    type="text"
+                    value={sstBarcode}
+                    onChange={(event) =>
+                      setSstBarcode(
+                        formatBarcodeInput(
+                          event.target.value
+                        )
+                      )
+                    }
+                    placeholder="AB123456"
+                    maxLength={8}
+                    className="w-full border rounded-lg px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="block text-sm font-semibold mb-2">
+                    EDTA Barcode
+                  </label>
+
+                  <input
+                    type="text"
+                    value={edtaBarcode}
+                    onChange={(event) =>
+                      setEdtaBarcode(
+                        formatBarcodeInput(
+                          event.target.value
+                        )
+                      )
+                    }
+                    placeholder="AB123456"
+                    maxLength={8}
+                    className="w-full border rounded-lg px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="block text-sm font-semibold mb-2">
+                    Fluoride Barcode
+                  </label>
+
+                  <input
+                    type="text"
+                    value={fluorideBarcode}
+                    onChange={(event) =>
+                      setFluorideBarcode(
+                        formatBarcodeInput(
+                          event.target.value
+                        )
+                      )
+                    }
+                    placeholder="AB123456"
+                    maxLength={8}
+                    className="w-full border rounded-lg px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="block text-sm font-semibold mb-2">
+                    Urine Barcode
+                  </label>
+
+                  <input
+                    type="text"
+                    value={urineBarcode}
+                    onChange={(event) =>
+                      setUrineBarcode(
+                        formatBarcodeInput(
+                          event.target.value
+                        )
+                      )
+                    }
+                    placeholder="AB123456"
+                    maxLength={8}
+                    className="w-full border rounded-lg px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+                <div>
+
+                  <label className="block text-sm font-semibold mb-2">
+                    Sputum Barcode
+                  </label>
+
+                  <input
+                    type="text"
+                    value={sputumBarcode}
+                    onChange={(event) =>
+                      setSputumBarcode(
+                        formatBarcodeInput(
+                          event.target.value
+                        )
+                      )
+                    }
+                    placeholder="AB123456"
+                    maxLength={8}
+                    className="w-full border rounded-lg px-3 py-2.5 bg-white"
+                  />
+
+                </div>
+
+              </div>
+
+            )}
 
           </div>
 

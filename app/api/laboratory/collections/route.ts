@@ -1,14 +1,68 @@
-import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
 
-function validateCollection(body: {
+import {
+  prisma,
+} from "@/app/lib/prisma";
+
+type CollectionBody = {
+  id?: unknown;
   date?: unknown;
   patientName?: unknown;
   testName?: unknown;
   cost?: unknown;
   labName?: unknown;
-}) {
-  const date = String(body.date ?? "").trim();
+
+  sstBarcode?: unknown;
+  edtaBarcode?: unknown;
+  fluorideBarcode?: unknown;
+  urineBarcode?: unknown;
+  sputumBarcode?: unknown;
+};
+
+function validateBarcode(
+  value: unknown,
+  label: string
+) {
+  const barcode = String(
+    value ?? ""
+  )
+    .trim()
+    .toUpperCase();
+
+  // Empty barcode is allowed
+  if (!barcode) {
+    return {
+      value: null,
+    };
+  }
+
+  // Exactly 2 capital letters + 6 digits
+  const barcodePattern =
+    /^[A-Z]{2}[0-9]{6}$/;
+
+  if (!barcodePattern.test(barcode)) {
+    return {
+      error:
+        `${label} barcode must contain ` +
+        `2 capital letters followed by 6 numbers. ` +
+        `Example: AB123456`,
+    };
+  }
+
+  return {
+    value: barcode,
+  };
+}
+
+function validateCollection(
+  body: CollectionBody
+) {
+  const date = String(
+    body.date ?? ""
+  ).trim();
 
   const patientName = String(
     body.patientName ?? ""
@@ -22,23 +76,28 @@ function validateCollection(body: {
     body.labName ?? ""
   ).trim();
 
-  const cost = Number(body.cost);
+  const cost = Number(
+    body.cost
+  );
 
   if (!date) {
     return {
-      error: "Date is required.",
+      error:
+        "Date is required.",
     };
   }
 
   if (!patientName) {
     return {
-      error: "Patient name is required.",
+      error:
+        "Patient name is required.",
     };
   }
 
   if (!testName) {
     return {
-      error: "Test name is required.",
+      error:
+        "Test name is required.",
     };
   }
 
@@ -50,19 +109,22 @@ function validateCollection(body: {
     cost < 0
   ) {
     return {
-      error: "Please enter a valid cost.",
+      error:
+        "Please enter a valid cost.",
     };
   }
 
   if (!labName) {
     return {
-      error: "Lab name is required.",
+      error:
+        "Lab name is required.",
     };
   }
 
-  const parsedDate = new Date(
-    `${date}T00:00:00`
-  );
+  const parsedDate =
+    new Date(
+      `${date}T00:00:00`
+    );
 
   if (
     Number.isNaN(
@@ -70,8 +132,115 @@ function validateCollection(body: {
     )
   ) {
     return {
-      error: "Invalid date.",
+      error:
+        "Invalid date.",
     };
+  }
+
+  /*
+   * Barcode fields are only used
+   * when Thyrocare is selected.
+   */
+
+  let sstBarcode: string | null =
+    null;
+
+  let edtaBarcode: string | null =
+    null;
+
+  let fluorideBarcode:
+    | string
+    | null = null;
+
+  let urineBarcode:
+    | string
+    | null = null;
+
+  let sputumBarcode:
+    | string
+    | null = null;
+
+  if (
+    labName.toLowerCase() ===
+    "thyrocare"
+  ) {
+    const sst =
+      validateBarcode(
+        body.sstBarcode,
+        "SST"
+      );
+
+    if ("error" in sst) {
+      return {
+        error: sst.error,
+      };
+    }
+
+    const edta =
+      validateBarcode(
+        body.edtaBarcode,
+        "EDTA"
+      );
+
+    if ("error" in edta) {
+      return {
+        error: edta.error,
+      };
+    }
+
+    const fluoride =
+      validateBarcode(
+        body.fluorideBarcode,
+        "Fluoride"
+      );
+
+    if ("error" in fluoride) {
+      return {
+        error:
+          fluoride.error,
+      };
+    }
+
+    const urine =
+      validateBarcode(
+        body.urineBarcode,
+        "Urine"
+      );
+
+    if ("error" in urine) {
+      return {
+        error:
+          urine.error,
+      };
+    }
+
+    const sputum =
+      validateBarcode(
+        body.sputumBarcode,
+        "Sputum"
+      );
+
+    if ("error" in sputum) {
+      return {
+        error:
+          sputum.error,
+      };
+    }
+
+    sstBarcode =
+      sst.value;
+
+    edtaBarcode =
+      edta.value;
+
+    fluorideBarcode =
+      fluoride.value;
+
+    urineBarcode =
+      urine.value;
+
+    sputumBarcode =
+      sputum.value;
   }
 
   return {
@@ -81,6 +250,16 @@ function validateCollection(body: {
       testName,
       cost,
       labName,
+
+      sstBarcode,
+
+      edtaBarcode,
+
+      fluorideBarcode,
+
+      urineBarcode,
+
+      sputumBarcode,
     },
   };
 }
@@ -88,11 +267,13 @@ function validateCollection(body: {
 export async function GET() {
   try {
     const collections =
-      await prisma.labSampleCollection.findMany({
-        orderBy: {
-          date: "desc",
-        },
-      });
+      await prisma.labSampleCollection.findMany(
+        {
+          orderBy: {
+            date: "desc",
+          },
+        }
+      );
 
     return NextResponse.json({
       success: true,
@@ -121,7 +302,8 @@ export async function POST(
   request: NextRequest
 ) {
   try {
-    const body = await request.json();
+    const body =
+      (await request.json()) as CollectionBody;
 
     const validation =
       validateCollection(body);
@@ -130,7 +312,8 @@ export async function POST(
       return NextResponse.json(
         {
           success: false,
-          message: validation.error,
+          message:
+            validation.error,
         },
         {
           status: 400,
@@ -139,9 +322,11 @@ export async function POST(
     }
 
     const collection =
-      await prisma.labSampleCollection.create({
-        data: validation.data,
-      });
+      await prisma.labSampleCollection.create(
+        {
+          data: validation.data,
+        }
+      );
 
     return NextResponse.json(
       {
@@ -175,9 +360,11 @@ export async function PUT(
   request: NextRequest
 ) {
   try {
-    const body = await request.json();
+    const body =
+      (await request.json()) as CollectionBody;
 
-    const id = Number(body.id);
+    const id =
+      Number(body.id);
 
     if (
       !Number.isInteger(id) ||
@@ -202,7 +389,8 @@ export async function PUT(
       return NextResponse.json(
         {
           success: false,
-          message: validation.error,
+          message:
+            validation.error,
         },
         {
           status: 400,
@@ -211,11 +399,13 @@ export async function PUT(
     }
 
     const existing =
-      await prisma.labSampleCollection.findUnique({
-        where: {
-          id,
-        },
-      });
+      await prisma.labSampleCollection.findUnique(
+        {
+          where: {
+            id,
+          },
+        }
+      );
 
     if (!existing) {
       return NextResponse.json(
@@ -231,12 +421,16 @@ export async function PUT(
     }
 
     const collection =
-      await prisma.labSampleCollection.update({
-        where: {
-          id,
-        },
-        data: validation.data,
-      });
+      await prisma.labSampleCollection.update(
+        {
+          where: {
+            id,
+          },
+
+          data:
+            validation.data,
+        }
+      );
 
     return NextResponse.json({
       success: true,
