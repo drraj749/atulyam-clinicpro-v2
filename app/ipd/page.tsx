@@ -179,7 +179,49 @@ type IpdBillingSummary = {
   totalPayments: number;
   balance: number;
 };
+type IpdDashboardData = {
+  admission: Admission;
 
+  latestVitals: IpdVital | null;
+
+  latestClinicalNote: ClinicalNote | null;
+
+  recentVitals: IpdVital[];
+
+  clinicalNotes: ClinicalNote[];
+
+  medications: {
+    total: number;
+    active: number;
+    orders: MedicationOrder[];
+  };
+
+  investigations: {
+    total: number;
+    pending: number;
+    completed: number;
+    items: IpdInvestigation[];
+  };
+
+  billing: {
+    totalCharges: number;
+    totalPayments: number;
+    balance: number;
+    charges: IpdCharge[];
+    payments: IpdPayment[];
+  };
+
+  dischargeSummary: IpdDischargeSummary | null;
+
+  dashboard: {
+    isDischarged: boolean;
+    hasDischargeSummary: boolean;
+    latestVitalRecorded: boolean;
+    activeMedications: number;
+    pendingInvestigations: number;
+    outstandingBalance: number;
+  };
+};
 const initialNewPatient = {
   firstName: "",
   lastName: "",
@@ -375,7 +417,23 @@ export default function IpdPage() {
   ] = useState<Admission | null>(
     null
   );
+  const [
+    dashboardData,
+    setDashboardData,
+  ] = useState<IpdDashboardData | null>(
+    null
+  );
 
+  const [
+    loadingDashboard,
+    setLoadingDashboard,
+  ] = useState(false);
+
+  const [
+    dashboardError,
+    setDashboardError,
+  ] = useState("");
+  
   const [
     dischargingId,
     setDischargingId,
@@ -1843,31 +1901,96 @@ ${[["Final Diagnosis", summary.finalDiagnosis],["History", summary.history],["Ex
     }
   }
 
-  async function openAdmissionDetails(
+    async function loadDashboard(
+    admissionId: number
+  ) {
+    try {
+      setLoadingDashboard(true);
+      setDashboardError("");
+
+      const response = await fetch(
+        `/api/ipd/admissions/${admissionId}/dashboard`,
+        {
+          cache: "no-store",
+        }
+      );
+
+      const data = await readApiResponse(
+        response
+      );
+
+      if (
+        !response.ok ||
+        !data.success
+      ) {
+        throw new Error(
+          data.message ||
+            "Unable to load IPD patient dashboard."
+        );
+      }
+
+      setDashboardData(data);
+    } catch (error) {
+      console.error(
+        "LOAD IPD DASHBOARD ERROR:",
+        error
+      );
+
+      setDashboardError(
+        error instanceof Error
+          ? error.message
+          : "Unable to load IPD patient dashboard."
+      );
+    } finally {
+      setLoadingDashboard(false);
+    }
+  }
+
+    async function openAdmissionDetails(
     admission: Admission
   ) {
     setSelectedAdmission(admission);
+
+    setDashboardData(null);
+    setDashboardError("");
+
     setClinicalNotes([]);
     setClinicalNotesError("");
     setClinicalNoteType("Progress");
     setClinicalNoteText("");
     setClinicalNoteCreatedBy("");
+
     setCharges([]);
     setPayments([]);
+
     setBillingSummary({
       totalCharges: 0,
       totalPayments: 0,
       balance: 0,
     });
+
     setBillingError("");
     setBillingSuccess("");
 
     await Promise.all([
+      loadDashboard(admission.id),
+
       loadClinicalNotes(admission.id),
+
       loadVitals(admission.id),
-      loadMedicationOrders(admission.id),
-      loadInvestigations(admission.id),
-      loadDischargeSummary(admission.id),
+
+      loadMedicationOrders(
+        admission.id
+      ),
+
+      loadInvestigations(
+        admission.id
+      ),
+
+      loadDischargeSummary(
+        admission.id
+      ),
+
       loadBilling(admission.id),
     ]);
   }
@@ -3268,13 +3391,19 @@ ${[["Final Diagnosis", summary.finalDiagnosis],["History", summary.history],["Ex
 
       {selectedAdmission && (
         <div className="fixed inset-0 z-[60] overflow-y-auto bg-black/50 p-4">
-          <div className="mx-auto my-8 max-w-3xl rounded-xl bg-white shadow-xl">
+          <div className="mx-auto my-8 max-w-7xl rounded-xl bg-white shadow-xl">
 
             <div className="flex items-center justify-between border-b p-5">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">
-                  IPD Patient Details
-                </h2>
+                <div>
+  <h2 className="text-2xl font-bold text-gray-900">
+    IPD Patient Dashboard
+  </h2>
+
+  <p className="mt-1 text-sm text-gray-500">
+    Complete clinical and admission overview
+  </p>
+</div>
 
                 <p className="mt-1 text-sm text-gray-500">
                   IPD No:{" "}
@@ -3300,6 +3429,625 @@ ${[["Final Diagnosis", summary.finalDiagnosis],["History", summary.history],["Ex
             </div>
 
             <div className="space-y-6 p-5">
+              {loadingDashboard && (
+  <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-center text-blue-700">
+    Loading patient dashboard...
+  </div>
+)}
+
+{dashboardError && (
+  <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
+    {dashboardError}
+  </div>
+)}
+
+{dashboardData && (
+  <section className="space-y-5">
+
+    {/* DASHBOARD HEADER */}
+
+    <div className="rounded-2xl bg-gradient-to-r from-blue-700 to-indigo-700 p-6 text-white shadow-lg">
+
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+
+        <div>
+
+          <div className="flex flex-wrap items-center gap-3">
+
+            <h2 className="text-2xl font-bold">
+              {dashboardData.admission.patient.firstName}{" "}
+              {dashboardData.admission.patient.lastName ||
+                ""}
+            </h2>
+
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-bold ${
+                dashboardData.dashboard.isDischarged
+                  ? "bg-gray-200 text-gray-800"
+                  : "bg-green-400 text-green-950"
+              }`}
+            >
+              {dashboardData.dashboard.isDischarged
+                ? "DISCHARGED"
+                : "ACTIVE ADMISSION"}
+            </span>
+
+          </div>
+
+          <p className="mt-2 text-blue-100">
+            UHID:{" "}
+            <span className="font-semibold text-white">
+              {
+                dashboardData.admission.patient
+                  .patientId
+              }
+            </span>
+
+            <span className="mx-2">•</span>
+
+            Age:{" "}
+            {
+              dashboardData.admission.patient
+                .age
+            }
+
+            <span className="mx-2">•</span>
+
+            {
+              dashboardData.admission.patient
+                .gender
+            }
+
+            <span className="mx-2">•</span>
+
+            Blood Group:{" "}
+            {
+              dashboardData.admission.patient
+                .bloodGroup || "-"
+            }
+          </p>
+
+        </div>
+
+        <div className="rounded-xl bg-white/15 px-5 py-4 backdrop-blur">
+
+          <p className="text-xs uppercase tracking-wider text-blue-100">
+            IPD Number
+          </p>
+
+          <p className="mt-1 text-xl font-bold">
+            {
+              dashboardData.admission
+                .ipdNo
+            }
+          </p>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    {/* QUICK STATUS CARDS */}
+
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+
+        <p className="text-xs font-semibold uppercase text-gray-500">
+          Active Medicines
+        </p>
+
+        <p className="mt-2 text-3xl font-bold text-blue-700">
+          {
+            dashboardData.dashboard
+              .activeMedications
+          }
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          Current medication orders
+        </p>
+
+      </div>
+
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+
+        <p className="text-xs font-semibold uppercase text-gray-500">
+          Pending Tests
+        </p>
+
+        <p className="mt-2 text-3xl font-bold text-amber-600">
+          {
+            dashboardData.dashboard
+              .pendingInvestigations
+          }
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          Investigations awaiting completion
+        </p>
+
+      </div>
+
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+
+        <p className="text-xs font-semibold uppercase text-gray-500">
+          Total Charges
+        </p>
+
+        <p className="mt-2 text-2xl font-bold text-gray-900">
+          ₹
+          {Number(
+            dashboardData.billing.totalCharges
+          ).toFixed(2)}
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          IPD charges
+        </p>
+
+      </div>
+
+
+      <div className="rounded-xl border bg-white p-4 shadow-sm">
+
+        <p className="text-xs font-semibold uppercase text-gray-500">
+          Payments
+        </p>
+
+        <p className="mt-2 text-2xl font-bold text-green-600">
+          ₹
+          {Number(
+            dashboardData.billing.totalPayments
+          ).toFixed(2)}
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          Amount received
+        </p>
+
+      </div>
+
+
+      <div
+        className={`rounded-xl border p-4 shadow-sm ${
+          dashboardData.dashboard
+            .outstandingBalance > 0
+            ? "border-red-200 bg-red-50"
+            : "border-green-200 bg-green-50"
+        }`}
+      >
+
+        <p className="text-xs font-semibold uppercase text-gray-500">
+          Outstanding
+        </p>
+
+        <p
+          className={`mt-2 text-2xl font-bold ${
+            dashboardData.dashboard
+              .outstandingBalance > 0
+              ? "text-red-600"
+              : "text-green-600"
+          }`}
+        >
+          ₹
+          {Number(
+            dashboardData.dashboard
+              .outstandingBalance
+          ).toFixed(2)}
+        </p>
+
+        <p className="mt-1 text-xs text-gray-500">
+          Current balance
+        </p>
+
+      </div>
+
+    </div>
+
+
+    {/* ADMISSION INFORMATION */}
+
+    <div className="grid gap-5 lg:grid-cols-2">
+
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+
+        <h3 className="mb-4 text-lg font-bold text-gray-900">
+          Admission Overview
+        </h3>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Ward
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {
+                dashboardData.admission
+                  .bed.ward.name
+              }
+            </p>
+
+          </div>
+
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Bed Number
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {
+                dashboardData.admission
+                  .bed.bedNumber
+              }
+            </p>
+
+          </div>
+
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Department
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {
+                dashboardData.admission
+                  .department
+              }
+            </p>
+
+          </div>
+
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Admitting Doctor
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {
+                dashboardData.admission
+                  .admittingDoctor
+              }
+            </p>
+
+          </div>
+
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Admission Date
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {new Date(
+                dashboardData.admission
+                  .admissionDate
+              ).toLocaleString()}
+            </p>
+
+          </div>
+
+
+          <div>
+
+            <p className="text-xs text-gray-500">
+              Diagnosis
+            </p>
+
+            <p className="mt-1 font-semibold text-gray-900">
+              {
+                dashboardData.admission
+                  .provisionalDiagnosis ||
+                "-"
+              }
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* LATEST VITALS */}
+
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+
+        <div className="mb-4 flex items-center justify-between">
+
+          <h3 className="text-lg font-bold text-gray-900">
+            Latest Vitals
+          </h3>
+
+          {dashboardData.latestVitals && (
+            <span className="text-xs text-gray-500">
+              {new Date(
+                dashboardData.latestVitals
+                  .recordedAt
+              ).toLocaleString()}
+            </span>
+          )}
+
+        </div>
+
+        {dashboardData.latestVitals ? (
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+
+            <div className="rounded-lg bg-red-50 p-3">
+
+              <p className="text-xs text-gray-500">
+                BP
+              </p>
+
+              <p className="mt-1 font-bold text-red-700">
+                {
+                  dashboardData.latestVitals
+                    .bp || "-"
+                }
+              </p>
+
+            </div>
+
+
+            <div className="rounded-lg bg-blue-50 p-3">
+
+              <p className="text-xs text-gray-500">
+                Pulse
+              </p>
+
+              <p className="mt-1 font-bold text-blue-700">
+                {
+                  dashboardData.latestVitals
+                    .pulse ?? "-"
+                }
+              </p>
+
+            </div>
+
+
+            <div className="rounded-lg bg-orange-50 p-3">
+
+              <p className="text-xs text-gray-500">
+                Temperature
+              </p>
+
+              <p className="mt-1 font-bold text-orange-700">
+                {
+                  dashboardData.latestVitals
+                    .temperature ?? "-"
+                }
+                {dashboardData.latestVitals
+                  .temperature !== null &&
+                dashboardData.latestVitals
+                  .temperature !== undefined
+                  ? " °F"
+                  : ""}
+              </p>
+
+            </div>
+
+
+            <div className="rounded-lg bg-green-50 p-3">
+
+              <p className="text-xs text-gray-500">
+                SpO₂
+              </p>
+
+              <p className="mt-1 font-bold text-green-700">
+                {
+                  dashboardData.latestVitals
+                    .spo2 ?? "-"
+                }
+                {dashboardData.latestVitals
+                  .spo2 !== null &&
+                dashboardData.latestVitals
+                  .spo2 !== undefined
+                  ? "%"
+                  : ""}
+              </p>
+
+            </div>
+
+          </div>
+
+        ) : (
+
+          <div className="rounded-lg bg-gray-50 p-6 text-center text-sm text-gray-500">
+            No vitals recorded yet.
+          </div>
+
+        )}
+
+      </div>
+
+    </div>
+
+
+    {/* CLINICAL OVERVIEW */}
+
+    <div className="grid gap-5 lg:grid-cols-2">
+
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+
+        <div className="mb-4 flex items-center justify-between">
+
+          <h3 className="text-lg font-bold text-gray-900">
+            Latest Clinical Note
+          </h3>
+
+          {dashboardData.latestClinicalNote && (
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+              {
+                dashboardData.latestClinicalNote
+                  .noteType
+              }
+            </span>
+          )}
+
+        </div>
+
+        {dashboardData.latestClinicalNote ? (
+
+          <div>
+
+            <p className="whitespace-pre-wrap text-sm leading-6 text-gray-700">
+              {
+                dashboardData.latestClinicalNote
+                  .note
+              }
+            </p>
+
+            <p className="mt-4 border-t pt-3 text-xs text-gray-500">
+
+              By{" "}
+
+              {
+                dashboardData.latestClinicalNote
+                  .createdBy || "-"
+              }
+
+              {" • "}
+
+              {new Date(
+                dashboardData.latestClinicalNote
+                  .createdAt
+              ).toLocaleString()}
+
+            </p>
+
+          </div>
+
+        ) : (
+
+          <div className="rounded-lg bg-gray-50 p-6 text-center text-sm text-gray-500">
+            No clinical notes available.
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* DISCHARGE STATUS */}
+
+      <div className="rounded-xl border bg-white p-5 shadow-sm">
+
+        <h3 className="mb-4 text-lg font-bold text-gray-900">
+          Discharge Status
+        </h3>
+
+        <div className="space-y-4">
+
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
+
+            <span className="text-sm text-gray-600">
+              Patient Status
+            </span>
+
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                dashboardData.dashboard
+                  .isDischarged
+                  ? "bg-gray-200 text-gray-700"
+                  : "bg-green-100 text-green-700"
+              }`}
+            >
+              {dashboardData.dashboard
+                .isDischarged
+                ? "Discharged"
+                : "Admitted"}
+            </span>
+
+          </div>
+
+
+          <div className="flex items-center justify-between rounded-lg bg-gray-50 p-4">
+
+            <span className="text-sm text-gray-600">
+              Discharge Summary
+            </span>
+
+            <span
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${
+                dashboardData.dashboard
+                  .hasDischargeSummary
+                  ? "bg-green-100 text-green-700"
+                  : "bg-amber-100 text-amber-700"
+              }`}
+            >
+              {dashboardData.dashboard
+                .hasDischargeSummary
+                ? "Prepared"
+                : "Pending"}
+            </span>
+
+          </div>
+
+
+          {dashboardData.dischargeSummary && (
+
+            <div className="rounded-lg border border-green-200 bg-green-50 p-4">
+
+              <p className="text-sm font-semibold text-green-800">
+                Final Diagnosis
+              </p>
+
+              <p className="mt-1 text-sm text-green-700">
+                {
+                  dashboardData.dischargeSummary
+                    .finalDiagnosis || "-"
+                }
+              </p>
+
+            </div>
+
+          )}
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    {/* REFRESH BUTTON */}
+
+    <div className="flex justify-end">
+
+      <button
+        type="button"
+        onClick={() =>
+          loadDashboard(
+            selectedAdmission.id
+          )
+        }
+        disabled={loadingDashboard}
+        className="rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        {loadingDashboard
+          ? "Refreshing Dashboard..."
+          : "Refresh Dashboard"}
+      </button>
+
+    </div>
+
+  </section>
+)}
 
               <div className="rounded-xl border p-4">
                 <h3 className="mb-4 text-lg font-bold text-gray-900">
@@ -4354,13 +5102,27 @@ ${[["Final Diagnosis", summary.finalDiagnosis],["History", summary.history],["Ex
 
                 <button
                   type="button"
-                  onClick={() => {
-                  setSelectedAdmission(
-                    null
-                  );
-                  setClinicalNotes([]);
-                  setClinicalNotesError("");
-                }}
+                 onClick={() => {
+  setSelectedAdmission(null);
+
+  setDashboardData(null);
+  setDashboardError("");
+
+  setClinicalNotes([]);
+  setClinicalNotesError("");
+
+  setVitals([]);
+
+  setMedicationOrders([]);
+
+  setInvestigations([]);
+
+  setCharges([]);
+
+  setPayments([]);
+
+  setDischargeSummary(null);
+}}
                   className="rounded-lg border border-gray-300 px-5 py-3 font-semibold text-gray-700 hover:bg-gray-50"
                 >
                   Close
