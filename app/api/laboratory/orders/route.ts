@@ -1,39 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 
-function generateOrderNo() {
-  return "LAB" + Date.now();
-}
-
 export async function GET() {
   try {
-    const orders = await prisma.labOrder.findMany({
-      include: {
-        patient: true,
-        items: {
-          include: {
-            test: true,
-          },
+    const collections =
+      await prisma.labSampleCollection.findMany({
+        orderBy: {
+          date: "desc",
         },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+      });
 
     return NextResponse.json({
       success: true,
-      orders,
+      collections,
     });
-
   } catch (error) {
-
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to load Lab Orders",
+        message: "Unable to load lab sample records.",
       },
       {
         status: 500,
@@ -46,62 +33,108 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const patient = await prisma.patient.findUnique({
-      where: {
-        patientId: body.patientId,
-      },
-    });
-
-    if (!patient) {
+    if (!body.collectionDate) {
       return NextResponse.json(
         {
           success: false,
-          message: "Patient not found",
+          message: "Date is required.",
         },
         {
-          status: 404,
+          status: 400,
         }
       );
     }
 
-    const order = await prisma.labOrder.create({
-      data: {
-        orderNo: generateOrderNo(),
-
-        patientId: patient.id,
-
-        referredBy: body.referredBy,
-
-        items: {
-          create: body.tests.map((testId: number) => ({
-            testId,
-          })),
+    if (!body.patientName?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Patient name is required.",
         },
-      },
+        {
+          status: 400,
+        }
+      );
+    }
 
-      include: {
-        patient: true,
-        items: {
-          include: {
-            test: true,
-          },
+    if (!body.testName?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Test name is required.",
         },
-      },
-    });
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (
+      body.cost === undefined ||
+      body.cost === null ||
+      body.cost === ""
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Cost is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const cost = Number(body.cost);
+
+    if (Number.isNaN(cost) || cost < 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Please enter a valid cost.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (!body.labName?.trim()) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Lab name is required.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const record =
+      await prisma.labSampleCollection.create({
+        data: {
+          date: new Date(
+            `${body.collectionDate}T00:00:00`
+          ),
+          patientName: body.patientName.trim(),
+          testName: body.testName.trim(),
+          cost,
+          labName: body.labName.trim(),
+        },
+      });
 
     return NextResponse.json({
       success: true,
-      order,
+      record,
     });
-
   } catch (error) {
-
     console.error(error);
 
     return NextResponse.json(
       {
         success: false,
-        message: "Unable to save Lab Order",
+        message: "Unable to save lab sample record.",
       },
       {
         status: 500,

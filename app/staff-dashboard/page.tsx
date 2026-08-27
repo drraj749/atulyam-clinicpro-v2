@@ -21,20 +21,34 @@ type Attendance = {
   checkIn: string | null;
   checkOut: string | null;
   remarks: string | null;
+
+  checkInLatitude?: number | null;
+  checkInLongitude?: number | null;
+  checkInAccuracy?: number | null;
+  checkInDistanceMeters?: number | null;
+
+  checkOutLatitude?: number | null;
+  checkOutLongitude?: number | null;
+  checkOutAccuracy?: number | null;
+  checkOutDistanceMeters?: number | null;
+
+  locationVerified?: boolean;
+};
+
+type GeoLocationData = {
+  latitude: number;
+  longitude: number;
+  accuracy: number;
 };
 
 export default function StaffDashboard() {
   const router = useRouter();
 
   const [staff, setStaff] =
-    useState<StaffSession | null>(
-      null
-    );
+    useState<StaffSession | null>(null);
 
   const [attendance, setAttendance] =
-    useState<Attendance | null>(
-      null
-    );
+    useState<Attendance | null>(null);
 
   const [loading, setLoading] =
     useState(true);
@@ -45,10 +59,13 @@ export default function StaffDashboard() {
   const [currentTime, setCurrentTime] =
     useState(new Date());
 
+  const [locationStatus, setLocationStatus] =
+    useState("");
+
   /**
-   * ========================================
-   * LOAD SESSION
-   * ========================================
+   * ============================================================
+   * LOAD STAFF SESSION
+   * ============================================================
    */
 
   useEffect(() => {
@@ -61,6 +78,7 @@ export default function StaffDashboard() {
       router.replace(
         "/staff/login"
       );
+
       return;
     }
 
@@ -70,9 +88,7 @@ export default function StaffDashboard() {
 
       setStaff(session);
 
-      loadAttendance(
-        session.id
-      );
+      loadAttendance();
     } catch {
       localStorage.removeItem(
         "staffSession"
@@ -85,9 +101,9 @@ export default function StaffDashboard() {
   }, [router]);
 
   /**
-   * ========================================
+   * ============================================================
    * LIVE CLOCK
-   * ========================================
+   * ============================================================
    */
 
   useEffect(() => {
@@ -103,18 +119,16 @@ export default function StaffDashboard() {
   }, []);
 
   /**
-   * ========================================
+   * ============================================================
    * LOAD ATTENDANCE
-   * ========================================
+   * ============================================================
    */
 
-  async function loadAttendance(
-    staffId: number
-  ) {
+  async function loadAttendance() {
     try {
       const response =
         await fetch(
-          `/api/staff/attendance?staffId=${staffId}`,
+          "/api/staff/attendance",
           {
             cache: "no-store",
           }
@@ -122,6 +136,20 @@ export default function StaffDashboard() {
 
       const result =
         await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        localStorage.removeItem(
+          "staffSession"
+        );
+
+        router.replace(
+          "/staff/login"
+        );
+
+        return;
+      }
 
       if (!response.ok) {
         console.error(
@@ -143,9 +171,101 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
-   * MARK ATTENDANCE
-   * ========================================
+   * ============================================================
+   * GET CURRENT GPS LOCATION
+   * ============================================================
+   */
+
+  function getCurrentLocation(): Promise<GeoLocationData> {
+    return new Promise(
+      (resolve, reject) => {
+        if (
+          !navigator.geolocation
+        ) {
+          reject(
+            new Error(
+              "GPS/location is not supported by this browser."
+            )
+          );
+
+          return;
+        }
+
+        setLocationStatus(
+          "Requesting your GPS location..."
+        );
+
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const latitude =
+              position.coords.latitude;
+
+            const longitude =
+              position.coords.longitude;
+
+            const accuracy =
+              position.coords.accuracy;
+
+            setLocationStatus(
+              `GPS detected. Accuracy: ${Math.round(
+                accuracy
+              )} metres`
+            );
+
+            resolve({
+              latitude,
+              longitude,
+              accuracy,
+            });
+          },
+
+          (error) => {
+            console.error(
+              "GPS ERROR:",
+              error
+            );
+
+            let message =
+              "Unable to get your location.";
+
+            switch (
+              error.code
+            ) {
+              case error.PERMISSION_DENIED:
+                message =
+                  "Location permission was denied. Please allow location access in your browser and try again.";
+                break;
+
+              case error.POSITION_UNAVAILABLE:
+                message =
+                  "Your device could not determine its location. Please turn on GPS/location services.";
+                break;
+
+              case error.TIMEOUT:
+                message =
+                  "GPS request timed out. Please try again.";
+                break;
+            }
+
+            reject(
+              new Error(message)
+            );
+          },
+
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 0,
+          }
+        );
+      }
+    );
+  }
+
+  /**
+   * ============================================================
+   * CHECK IN
+   * ============================================================
    */
 
   async function markAttendance(
@@ -156,8 +276,35 @@ export default function StaffDashboard() {
     }
 
     setSaving(true);
+    setLocationStatus("");
 
     try {
+      let location:
+        | GeoLocationData
+        | null = null;
+
+      /*
+       * Present / Half Day require
+       * physical hospital location.
+       */
+
+      if (
+        status === "Present" ||
+        status === "Half Day"
+      ) {
+        try {
+          location =
+            await getCurrentLocation();
+        } catch (error: any) {
+          alert(
+            error?.message ||
+              "Unable to verify your location."
+          );
+
+          return;
+        }
+      }
+
       const response =
         await fetch(
           "/api/staff/attendance",
@@ -170,15 +317,36 @@ export default function StaffDashboard() {
             },
 
             body: JSON.stringify({
-              staffId:
-                staff.id,
               status,
+
+              latitude:
+                location?.latitude,
+
+              longitude:
+                location?.longitude,
+
+              accuracy:
+                location?.accuracy,
             }),
           }
         );
 
       const result =
         await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        localStorage.removeItem(
+          "staffSession"
+        );
+
+        router.replace(
+          "/staff/login"
+        );
+
+        return;
+      }
 
       if (!response.ok) {
         alert(
@@ -193,8 +361,17 @@ export default function StaffDashboard() {
         result.attendance
       );
 
+      if (
+        result.location?.verified
+      ) {
+        setLocationStatus(
+          `✓ Location verified — ${result.location.distanceMeters} m from hospital`
+        );
+      }
+
       alert(
-        "Attendance marked successfully."
+        result.message ||
+          "Attendance marked successfully."
       );
     } catch (error) {
       console.error(error);
@@ -208,9 +385,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * CHECK OUT
-   * ========================================
+   * ============================================================
    */
 
   async function checkOut() {
@@ -228,8 +405,25 @@ export default function StaffDashboard() {
     }
 
     setSaving(true);
+    setLocationStatus("");
 
     try {
+      let location:
+        | GeoLocationData
+        | null = null;
+
+      try {
+        location =
+          await getCurrentLocation();
+      } catch (error: any) {
+        alert(
+          error?.message ||
+            "Unable to verify your location."
+        );
+
+        return;
+      }
+
       const response =
         await fetch(
           "/api/staff/attendance",
@@ -242,14 +436,34 @@ export default function StaffDashboard() {
             },
 
             body: JSON.stringify({
-              staffId:
-                staff.id,
+              latitude:
+                location.latitude,
+
+              longitude:
+                location.longitude,
+
+              accuracy:
+                location.accuracy,
             }),
           }
         );
 
       const result =
         await response.json();
+
+      if (
+        response.status === 401
+      ) {
+        localStorage.removeItem(
+          "staffSession"
+        );
+
+        router.replace(
+          "/staff/login"
+        );
+
+        return;
+      }
 
       if (!response.ok) {
         alert(
@@ -263,6 +477,14 @@ export default function StaffDashboard() {
       setAttendance(
         result.attendance
       );
+
+      if (
+        result.location?.verified
+      ) {
+        setLocationStatus(
+          `✓ Location verified — ${result.location.distanceMeters} m from hospital`
+        );
+      }
 
       alert(
         `Check-out successful.\n\nWorking time: ${result.workingHours}`
@@ -279,9 +501,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * LOGOUT
-   * ========================================
+   * ============================================================
    */
 
   async function logout() {
@@ -306,9 +528,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * FORMAT TIME
-   * ========================================
+   * ============================================================
    */
 
   function formatTime(
@@ -331,9 +553,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * WORKING TIME
-   * ========================================
+   * ============================================================
    */
 
   function getWorkingTime() {
@@ -378,9 +600,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
-   * STATUS
-   * ========================================
+   * ============================================================
+   * STATUS CLASS
+   * ============================================================
    */
 
   function statusClass() {
@@ -409,9 +631,9 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * LOADING
-   * ========================================
+   * ============================================================
    */
 
   if (loading) {
@@ -429,14 +651,13 @@ export default function StaffDashboard() {
   }
 
   /**
-   * ========================================
+   * ============================================================
    * RENDER
-   * ========================================
+   * ============================================================
    */
 
   return (
     <main className="min-h-screen bg-gray-100 p-4 md:p-6">
-
       <div className="max-w-5xl mx-auto">
 
         {/* HEADER */}
@@ -446,7 +667,6 @@ export default function StaffDashboard() {
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
 
             <div>
-
               <p className="text-blue-200 text-sm font-semibold">
                 ATULYAM HOSPITAL
               </p>
@@ -458,11 +678,9 @@ export default function StaffDashboard() {
               <p className="text-blue-100 mt-1">
                 Attendance & Working Hours
               </p>
-
             </div>
 
             <div className="text-left md:text-right">
-
               <p className="text-blue-200 text-sm">
                 Current Time
               </p>
@@ -472,7 +690,6 @@ export default function StaffDashboard() {
                   "en-IN"
                 )}
               </p>
-
             </div>
 
             <button
@@ -529,15 +746,13 @@ export default function StaffDashboard() {
           <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
 
             <div>
-
               <h2 className="text-xl font-bold text-blue-900">
                 Today's Attendance
               </h2>
 
               <p className="text-gray-500 mt-1">
-                Record your check-in and check-out.
+                Check-in and check-out require your physical location at Atulyam Hospital.
               </p>
-
             </div>
 
             {attendance && (
@@ -550,20 +765,28 @@ export default function StaffDashboard() {
 
           </div>
 
+          {/* LOCATION STATUS */}
+
+          {locationStatus && (
+            <div className="mt-5 bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 font-semibold">
+              📍 {locationStatus}
+            </div>
+          )}
+
           {/* NOT MARKED */}
 
           {!attendance && (
 
             <div className="mt-7">
 
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 mb-5">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-5 mb-5">
 
-                <p className="font-semibold text-blue-900">
-                  Attendance not marked
+                <p className="font-semibold text-yellow-900">
+                  📍 Location verification required
                 </p>
 
-                <p className="text-blue-700 text-sm mt-1">
-                  Please select your attendance status.
+                <p className="text-yellow-800 text-sm mt-1">
+                  For Present or Half Day attendance, allow location access. Your phone must be physically near Atulyam Hospital.
                 </p>
 
               </div>
@@ -644,6 +867,45 @@ export default function StaffDashboard() {
                 />
 
               </div>
+
+              {/* LOCATION VERIFICATION */}
+
+              {attendance.locationVerified && (
+                <div className="mt-5 bg-green-50 border border-green-200 rounded-xl p-5">
+
+                  <p className="text-green-800 font-bold">
+                    ✓ Hospital location verified
+                  </p>
+
+                  {attendance.checkInDistanceMeters != null && (
+                    <p className="text-green-700 text-sm mt-1">
+                      Check-in distance:{" "}
+                      {Math.round(
+                        attendance.checkInDistanceMeters
+                      )} metres
+                    </p>
+                  )}
+
+                  {attendance.checkInAccuracy != null && (
+                    <p className="text-green-700 text-sm">
+                      GPS accuracy:{" "}
+                      {Math.round(
+                        attendance.checkInAccuracy
+                      )} metres
+                    </p>
+                  )}
+
+                  {attendance.checkOutDistanceMeters != null && (
+                    <p className="text-green-700 text-sm mt-1">
+                      Check-out distance:{" "}
+                      {Math.round(
+                        attendance.checkOutDistanceMeters
+                      )} metres
+                    </p>
+                  )}
+
+                </div>
+              )}
 
               {/* WORKING */}
 
@@ -727,7 +989,6 @@ export default function StaffDashboard() {
                   </p>
 
                 </div>
-
               )}
 
               {/* LEAVE */}
@@ -753,7 +1014,7 @@ export default function StaffDashboard() {
 
         </div>
 
-        {/* IMPORTANT RULES */}
+        {/* RULES */}
 
         <div className="bg-white rounded-2xl shadow mt-5 p-6">
 
@@ -764,11 +1025,19 @@ export default function StaffDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4 text-sm text-gray-600">
 
             <p>
-              ✓ Check-in is recorded by the hospital server.
+              ✓ Present / Half Day requires hospital GPS verification.
             </p>
 
             <p>
-              ✓ Check-out is recorded by the hospital server.
+              ✓ Staff must be within 100 metres of Atulyam Hospital.
+            </p>
+
+            <p>
+              ✓ GPS accuracy must be within acceptable range.
+            </p>
+
+            <p>
+              ✓ Check-out also requires hospital GPS verification.
             </p>
 
             <p>
@@ -779,28 +1048,19 @@ export default function StaffDashboard() {
               ✓ Check-out cannot be performed before check-in.
             </p>
 
-            <p>
-              ✓ Once checked out, attendance cannot be checked out again.
-            </p>
-
-            <p>
-              ✓ Working hours are calculated automatically.
-            </p>
-
           </div>
 
         </div>
 
       </div>
-
     </main>
   );
 }
 
 /**
- * ============================================
+ * ============================================================
  * INFO CARD
- * ============================================
+ * ============================================================
  */
 
 function InfoCard({
@@ -826,9 +1086,9 @@ function InfoCard({
 }
 
 /**
- * ============================================
+ * ============================================================
  * TIME CARD
- * ============================================
+ * ============================================================
  */
 
 function TimeCard({

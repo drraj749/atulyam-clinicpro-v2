@@ -3,15 +3,35 @@ import {
   NextResponse,
 } from "next/server";
 
+import crypto from "crypto";
+
 import { prisma } from "@/app/lib/prisma";
 
-/**
- * ============================================
- * INDIA DATE
- * ============================================
+/*
+ * ============================================================
+ * ATULYAM HOSPITAL STAFF ATTENDANCE
+ * GPS LOCATION VERIFICATION
+ * ============================================================
  *
- * Returns:
- * YYYY-MM-DD
+ * Hospital:
+ * Latitude:  25.82948581821593
+ * Longitude: 84.02879642940225
+ *
+ * Staff must be within LOCATION_RADIUS_METERS.
+ */
+
+const HOSPITAL_LATITUDE = 25.82948581821593;
+const HOSPITAL_LONGITUDE = 84.02879642940225;
+
+const LOCATION_RADIUS_METERS = 100;
+
+// Reject extremely inaccurate GPS readings.
+const MAX_ALLOWED_ACCURACY_METERS = 100;
+
+/**
+ * ============================================================
+ * INDIA DATE
+ * ============================================================
  */
 
 function getIndiaDate(): string {
@@ -24,34 +44,229 @@ function getIndiaDate(): string {
 }
 
 /**
- * ============================================
- * GET TODAY'S ATTENDANCE
- * ============================================
+ * ============================================================
+ * DISTANCE CALCULATION
+ * ============================================================
  *
- * /api/staff/attendance?staffId=1
+ * Haversine formula.
+ *
+ * Returns distance in metres.
+ */
+
+function calculateDistanceMeters(
+  latitude: number,
+  longitude: number
+): number {
+  const earthRadius = 6371000;
+
+  const lat1 =
+    (HOSPITAL_LATITUDE * Math.PI) / 180;
+
+  const lat2 =
+    (latitude * Math.PI) / 180;
+
+  const deltaLat =
+    ((latitude - HOSPITAL_LATITUDE) *
+      Math.PI) /
+    180;
+
+  const deltaLon =
+    ((longitude - HOSPITAL_LONGITUDE) *
+      Math.PI) /
+    180;
+
+  const a =
+    Math.sin(deltaLat / 2) *
+      Math.sin(deltaLat / 2) +
+    Math.cos(lat1) *
+      Math.cos(lat2) *
+      Math.sin(deltaLon / 2) *
+      Math.sin(deltaLon / 2);
+
+  const c =
+    2 *
+    Math.atan2(
+      Math.sqrt(a),
+      Math.sqrt(1 - a)
+    );
+
+  return earthRadius * c;
+}
+
+/**
+ * ============================================================
+ * LOCATION VALIDATION
+ * ============================================================
+ */
+
+function validateLocation(body: any) {
+  const latitude = Number(body.latitude);
+  const longitude = Number(body.longitude);
+  const accuracy = Number(body.accuracy);
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(accuracy)
+  ) {
+    return {
+      valid: false,
+      message:
+        "Unable to verify your GPS location. Please allow location access and try again.",
+    };
+  }
+
+  if (
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return {
+      valid: false,
+      message: "Invalid GPS coordinates.",
+    };
+  }
+
+  if (accuracy <= 0) {
+    return {
+      valid: false,
+      message:
+        "GPS accuracy could not be determined. Please try again outdoors or near a window.",
+    };
+  }
+
+  if (
+    accuracy >
+    MAX_ALLOWED_ACCURACY_METERS
+  ) {
+    return {
+      valid: false,
+      message:
+        `GPS accuracy is too low (${Math.round(
+          accuracy
+        )} m). Please enable high-accuracy location and try again.`,
+    };
+  }
+
+  const distance =
+    calculateDistanceMeters(
+      latitude,
+      longitude
+    );
+
+  if (
+    distance >
+    LOCATION_RADIUS_METERS
+  ) {
+    return {
+      valid: false,
+      distance,
+      latitude,
+      longitude,
+      accuracy,
+      message:
+        `Attendance can only be marked at Atulyam Hospital. You are approximately ${Math.round(
+          distance
+        )} metres away from the hospital.`,
+    };
+  }
+
+  return {
+    valid: true,
+    distance,
+    latitude,
+    longitude,
+    accuracy,
+  };
+}
+
+/**
+ * ============================================================
+ * AUTHENTICATED STAFF
+ * ============================================================
+ *
+ * IMPORTANT:
+ * Never trust staffId sent from the browser.
+ *
+ * We identify the staff member using the secure
+ * HTTP-only staff_session cookie.
+ */
+
+async function getAuthenticatedStaff(
+  request: NextRequest
+) {
+  const token =
+    request.cookies.get(
+      "staff_session"
+    )?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  const tokenHash =
+    crypto
+      .createHash("sha256")
+      .update(token)
+      .digest("hex");
+
+  const session =
+    await prisma.staffSession.findUnique({
+      where: {
+        tokenHash,
+      },
+      include: {
+        staff: true,
+      },
+    });
+
+  if (!session) {
+    return null;
+  }
+
+  if (
+    session.expiresAt.getTime() <=
+    Date.now()
+  ) {
+    return null;
+  }
+
+  if (!session.staff.isActive) {
+    return null;
+  }
+
+  if (!session.staff.loginEnabled) {
+    return null;
+  }
+
+  return session.staff;
+}
+
+/**
+ * ============================================================
+ * GET TODAY'S ATTENDANCE
+ * ============================================================
  */
 
 export async function GET(
   request: NextRequest
 ) {
   try {
-    const staffId = Number(
-      request.nextUrl.searchParams.get(
-        "staffId"
-      )
-    );
+    const staff =
+      await getAuthenticatedStaff(
+        request
+      );
 
-    if (
-      !staffId ||
-      Number.isNaN(staffId)
-    ) {
+    if (!staff) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid staff ID.",
+          message:
+            "Your staff session has expired. Please login again.",
         },
         {
-          status: 400,
+          status: 401,
         }
       );
     }
@@ -63,7 +278,7 @@ export async function GET(
       await prisma.attendance.findUnique({
         where: {
           staffId_attendanceDate: {
-            staffId,
+            staffId: staff.id,
             attendanceDate,
           },
         },
@@ -71,6 +286,12 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
+      staff: {
+        id: staff.id,
+        staffCode: staff.staffCode,
+        name: staff.name,
+        role: staff.role,
+      },
       attendance,
     });
   } catch (error) {
@@ -93,49 +314,41 @@ export async function GET(
 }
 
 /**
- * ============================================
+ * ============================================================
  * POST
- * ============================================
+ * ============================================================
  *
- * Marks today's attendance.
- *
- * Supported statuses:
- *
- * Present
- * Half Day
- * Leave
- * Absent
+ * STAFF CHECK-IN
  */
 
 export async function POST(
   request: NextRequest
 ) {
   try {
+    const staff =
+      await getAuthenticatedStaff(
+        request
+      );
+
+    if (!staff) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Your staff session has expired. Please login again.",
+        },
+        {
+          status: 401,
+        }
+      );
+    }
+
     const body =
       await request.json();
-
-    const staffId = Number(
-      body.staffId
-    );
 
     const status = String(
       body.status ?? ""
     ).trim();
-
-    if (
-      !staffId ||
-      Number.isNaN(staffId)
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid staff ID.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
 
     const allowedStatuses = [
       "Present",
@@ -161,55 +374,14 @@ export async function POST(
       );
     }
 
-    /**
-     * Verify staff.
-     */
-
-    const staff =
-      await prisma.staff.findUnique({
-        where: {
-          id: staffId,
-        },
-      });
-
-    if (!staff) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff member not found.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    if (!staff.isActive) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff member is inactive.",
-        },
-        {
-          status: 403,
-        }
-      );
-    }
-
     const attendanceDate =
       getIndiaDate();
-
-    /**
-     * Prevent duplicate attendance.
-     */
 
     const existing =
       await prisma.attendance.findUnique({
         where: {
           staffId_attendanceDate: {
-            staffId,
+            staffId: staff.id,
             attendanceDate,
           },
         },
@@ -229,27 +401,88 @@ export async function POST(
       );
     }
 
-    /**
-     * Only Present and Half Day
-     * receive a check-in time.
-     *
-     * Leave / Absent do not.
+    /*
+     * Leave / Absent do not require
+     * physical location.
      */
 
+    if (
+      status === "Leave" ||
+      status === "Absent"
+    ) {
+      const attendance =
+        await prisma.attendance.create({
+          data: {
+            staffId: staff.id,
+            attendanceDate,
+            status,
+            checkIn: null,
+            checkOut: null,
+            locationVerified: false,
+          },
+        });
+
+      return NextResponse.json(
+        {
+          success: true,
+          message:
+            "Attendance recorded.",
+          attendance,
+        },
+        {
+          status: 201,
+        }
+      );
+    }
+
+    /*
+     * Present / Half Day require GPS.
+     */
+
+    const location =
+      validateLocation(body);
+
+    if (!location.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            location.message ||
+            "Location verification failed.",
+          distance:
+            location.distance ?? null,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
     const checkIn =
-      status === "Present" ||
-      status === "Half Day"
-        ? new Date()
-        : null;
+      new Date();
 
     const attendance =
       await prisma.attendance.create({
         data: {
-          staffId,
+          staffId: staff.id,
           attendanceDate,
           status,
           checkIn,
           checkOut: null,
+
+          checkInLatitude:
+            location.latitude,
+
+          checkInLongitude:
+            location.longitude,
+
+          checkInAccuracy:
+            location.accuracy,
+
+          checkInDistanceMeters:
+            location.distance,
+
+          locationVerified: true,
         },
       });
 
@@ -257,8 +490,19 @@ export async function POST(
       {
         success: true,
         message:
-          "Attendance marked successfully.",
+          "Attendance marked successfully. Location verified.",
         attendance,
+        location: {
+          verified: true,
+          distanceMeters:
+            Math.round(
+              location.distance!
+            ),
+          accuracyMeters:
+            Math.round(
+              location.accuracy!
+            ),
+        },
       },
       {
         status: 201,
@@ -284,82 +528,39 @@ export async function POST(
 }
 
 /**
- * ============================================
+ * ============================================================
  * PATCH
- * ============================================
+ * ============================================================
  *
  * STAFF CHECK-OUT
  *
- * Server automatically records
- * the current time.
+ * GPS verification is required again.
  */
 
 export async function PATCH(
   request: NextRequest
 ) {
   try {
-    const body =
-      await request.json();
-
-    const staffId = Number(
-      body.staffId
-    );
-
-    if (
-      !staffId ||
-      Number.isNaN(staffId)
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid staff ID.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    /**
-     * Verify staff.
-     */
-
     const staff =
-      await prisma.staff.findUnique({
-        where: {
-          id: staffId,
-        },
-      });
+      await getAuthenticatedStaff(
+        request
+      );
 
     if (!staff) {
       return NextResponse.json(
         {
           success: false,
           message:
-            "Staff member not found.",
+            "Your staff session has expired. Please login again.",
         },
         {
-          status: 404,
+          status: 401,
         }
       );
     }
 
-    if (!staff.isActive) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff member is inactive.",
-        },
-        {
-          status: 403,
-        }
-      );
-    }
-
-    /**
-     * Today's attendance.
-     */
+    const body =
+      await request.json();
 
     const attendanceDate =
       getIndiaDate();
@@ -368,16 +569,11 @@ export async function PATCH(
       await prisma.attendance.findUnique({
         where: {
           staffId_attendanceDate: {
-            staffId,
+            staffId: staff.id,
             attendanceDate,
           },
         },
       });
-
-    /**
-     * No attendance means
-     * staff cannot check out.
-     */
 
     if (!attendance) {
       return NextResponse.json(
@@ -391,11 +587,6 @@ export async function PATCH(
         }
       );
     }
-
-    /**
-     * Leave / Absent cannot
-     * check out.
-     */
 
     if (
       attendance.status ===
@@ -415,10 +606,6 @@ export async function PATCH(
       );
     }
 
-    /**
-     * Must have check-in.
-     */
-
     if (!attendance.checkIn) {
       return NextResponse.json(
         {
@@ -431,10 +618,6 @@ export async function PATCH(
         }
       );
     }
-
-    /**
-     * Prevent duplicate check-out.
-     */
 
     if (attendance.checkOut) {
       return NextResponse.json(
@@ -450,19 +633,35 @@ export async function PATCH(
       );
     }
 
-    /**
-     * SERVER TIME
-     *
-     * Staff cannot submit a custom
-     * checkout time.
+    /*
+     * Verify checkout location.
+     */
+
+    const location =
+      validateLocation(body);
+
+    if (!location.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            location.message ||
+            "Location verification failed.",
+          distance:
+            location.distance ?? null,
+        },
+        {
+          status: 403,
+        }
+      );
+    }
+
+    /*
+     * Server controls checkout time.
      */
 
     const checkOut =
       new Date();
-
-    /**
-     * Safety check.
-     */
 
     if (
       checkOut.getTime() <=
@@ -480,10 +679,6 @@ export async function PATCH(
       );
     }
 
-    /**
-     * Calculate working time.
-     */
-
     const workingMinutes =
       Math.floor(
         (
@@ -491,10 +686,6 @@ export async function PATCH(
           attendance.checkIn.getTime()
         ) / 60000
       );
-
-    /**
-     * Save checkout.
-     */
 
     const updatedAttendance =
       await prisma.attendance.update({
@@ -504,12 +695,22 @@ export async function PATCH(
 
         data: {
           checkOut,
+
+          checkOutLatitude:
+            location.latitude,
+
+          checkOutLongitude:
+            location.longitude,
+
+          checkOutAccuracy:
+            location.accuracy,
+
+          checkOutDistanceMeters:
+            location.distance,
+
+          locationVerified: true,
         },
       });
-
-    /**
-     * Return calculated hours.
-     */
 
     const hours =
       Math.floor(
@@ -523,10 +724,22 @@ export async function PATCH(
       success: true,
 
       message:
-        "Check-out successful.",
+        "Check-out successful. Location verified.",
 
       attendance:
         updatedAttendance,
+
+      location: {
+        verified: true,
+        distanceMeters:
+          Math.round(
+            location.distance!
+          ),
+        accuracyMeters:
+          Math.round(
+            location.accuracy!
+          ),
+      },
 
       workingMinutes,
 
