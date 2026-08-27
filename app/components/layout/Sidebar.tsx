@@ -29,6 +29,20 @@ const menu = [
         name: "OPD",
         href: "/opd/select",
       },
+      {
+        name: "IPD",
+        href: "/ipd",
+      },
+    ],
+  },
+
+  {
+    title: "Laboratory",
+    items: [
+      {
+        name: "Laboratory",
+        href: "/laboratory",
+      },
     ],
   },
 
@@ -58,10 +72,6 @@ const menu = [
         href: "/disease-templates",
       },
       {
-        name: "Laboratory",
-        href: "/laboratory",
-      },
-      {
         name: "Settings",
         href: "/settings",
       },
@@ -84,11 +94,8 @@ export default function Sidebar() {
 
   return (
     <aside className="w-64 bg-blue-900 text-white min-h-screen flex flex-col">
-
       {/* HOSPITAL HEADER */}
-
       <div className="p-6 border-b border-blue-800">
-
         <h1 className="text-2xl font-bold">
           🏥 Atulyam Hospital
         </h1>
@@ -96,31 +103,24 @@ export default function Sidebar() {
         <p className="text-sm text-blue-200 mt-1">
           Born To Serve
         </p>
-
       </div>
 
       {/* MENU */}
-
       <nav className="flex-1 overflow-y-auto p-4">
-
         {menu.map((section) => (
-
           <div
             key={section.title}
             className="mb-6"
           >
-
             <h3 className="text-xs uppercase tracking-wider text-blue-300 font-semibold mb-2 px-2">
               {section.title}
             </h3>
 
             {section.items.map((item) => {
-
               const isActive =
                 pathname === item.href ||
-                pathname.startsWith(
-                  item.href + "/"
-                );
+                (item.href !== "/" &&
+                  pathname.startsWith(item.href + "/"));
 
               return (
                 <Link
@@ -136,17 +136,12 @@ export default function Sidebar() {
                 </Link>
               );
             })}
-
           </div>
-
         ))}
-
       </nav>
 
       {/* DOCTOR */}
-
       <div className="p-4 border-t border-blue-800">
-
         <p className="font-semibold">
           Dr. Rahul Kumar
         </p>
@@ -154,9 +149,7 @@ export default function Sidebar() {
         <p className="text-sm text-blue-200">
           Consultant Physician
         </p>
-
       </div>
-
     </aside>
   );
 }
