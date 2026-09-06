@@ -8,7 +8,6 @@ const eslintConfig = defineConfig([
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
-      "react/no-unescaped-entities": "warn",
       "@typescript-eslint/no-unused-vars": "warn",
       "@next/next/no-img-element": "warn",
       "prefer-const": "warn",
@@ -22,4 +21,4 @@ const eslintConfig = defineConfig([
   ]),
 ]);
 
-export default defineConfig(eslintConfig);
+export default eslintConfig;
