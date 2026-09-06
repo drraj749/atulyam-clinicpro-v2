@@ -23,6 +23,14 @@ const eslintConfig = defineConfig([
       "react/no-unescaped-entities": "warn",
     },
   },
+  {
+    files: ["scripts/**/*.cjs"],
+    rules: {
+      // The SQLite → PostgreSQL migration utility intentionally uses CommonJS
+      // because it is a standalone Node.js script, not application code.
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
   globalIgnores([
     ".next/**",
     "out/**",
