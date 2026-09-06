@@ -1,231 +1,119 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import { prisma } from "@/app/lib/prisma";
 
-type Params = {
-  params: Promise<{
-    id: string;
-  }>;
-};
+const SESSION_DAYS = 7;
 
-// ========================================
-// CREATE / UPDATE STAFF LOGIN CREDENTIALS
-// ========================================
-
-export async function PUT(
-  request: NextRequest,
-  { params }: Params
-) {
+export async function POST(request: NextRequest) {
   try {
-    const { id } = await params;
-
-    const staffId = Number(id);
-
-    if (!staffId || Number.isNaN(staffId)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Invalid staff ID.",
-        },
-        { status: 400 }
-      );
-    }
-
     const body = await request.json();
 
-    const username = String(
-      body.username ?? ""
-    ).trim().toLowerCase();
+    const username = String(body.username || "").trim();
+    const password = String(body.password || "");
 
-    const password = String(
-      body.password ?? ""
-    );
-
-    const loginEnabled =
-      body.loginEnabled === true;
-
-    // ========================================
-    // FIND STAFF
-    // ========================================
-
-    const staff =
-      await prisma.staff.findUnique({
-        where: {
-          id: staffId,
-        },
-      });
-
-    if (!staff) {
+    if (!username || !password) {
       return NextResponse.json(
-        {
-          success: false,
-          message: "Staff member not found.",
-        },
-        { status: 404 }
+        { success: false, message: "Username and password are required." },
+        { status: 400 },
       );
     }
 
-    // ========================================
-    // DISABLE LOGIN
-    // ========================================
-
-    if (!loginEnabled) {
-      await prisma.staff.update({
-        where: {
-          id: staffId,
-        },
-        data: {
-          loginEnabled: false,
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message:
-          "Staff login disabled successfully.",
-      });
-    }
-
-    // ========================================
-    // VALIDATE USERNAME
-    // ========================================
-
-    if (!username) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Username is required when login is enabled.",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (username.length < 3) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Username must contain at least 3 characters.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // ========================================
-    // VALIDATE PASSWORD
-    // ========================================
-
-    // If a new password is provided,
-    // create a new password hash.
-
-    let passwordHash =
-      staff.passwordHash;
-
-    if (password.length > 0) {
-      if (password.length < 6) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Password must contain at least 6 characters.",
-          },
-          { status: 400 }
-        );
-      }
-
-      passwordHash =
-        await bcrypt.hash(
-          password,
-          12
-        );
-    }
-
-    if (!passwordHash) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Please enter a password.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // ========================================
-    // CHECK USERNAME
-    // ========================================
-
-    const existingStaff =
-      await prisma.staff.findFirst({
-        where: {
-          username,
-          NOT: {
-            id: staffId,
-          },
-        },
-      });
-
-    if (existingStaff) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "This username is already being used by another staff member.",
-        },
-        { status: 400 }
-      );
-    }
-
-    // ========================================
-    // SAVE LOGIN
-    // ========================================
-
-    const updatedStaff =
-      await prisma.staff.update({
-        where: {
-          id: staffId,
-        },
-
-        data: {
-          username,
-          passwordHash,
-          loginEnabled: true,
-        },
-      });
-
-    return NextResponse.json({
-      success: true,
-
-      message:
-        "Staff login credentials saved successfully.",
-
-      staff: {
-        id: updatedStaff.id,
-        staffCode:
-          updatedStaff.staffCode,
-        name: updatedStaff.name,
-        role: updatedStaff.role,
-        username:
-          updatedStaff.username,
-        loginEnabled:
-          updatedStaff.loginEnabled,
+    const staff = await prisma.staff.findFirst({
+      where: {
+        username,
+        isActive: true,
+        loginEnabled: true,
       },
     });
-  } catch (error: any) {
-    console.error(
-      "STAFF LOGIN CREDENTIAL ERROR:",
-      error
+
+    if (!staff || !staff.passwordHash) {
+      return NextResponse.json(
+        { success: false, message: "Invalid username or password." },
+        { status: 401 },
+      );
+    }
+
+    const passwordValid = await bcrypt.compare(password, staff.passwordHash);
+
+    if (!passwordValid) {
+      return NextResponse.json(
+        { success: false, message: "Invalid username or password." },
+        { status: 401 },
+      );
+    }
+
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(rawToken)
+      .digest("hex");
+
+    const expiresAt = new Date(
+      Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000,
     );
 
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          error?.message ||
-          "Unable to save login credentials.",
+    // Remove expired sessions for this staff member.
+    await prisma.staffSession.deleteMany({
+      where: {
+        staffId: staff.id,
+        expiresAt: { lte: new Date() },
       },
-      { status: 500 }
+    });
+
+    await prisma.staffSession.create({
+      data: {
+        staffId: staff.id,
+        tokenHash,
+        expiresAt,
+      },
+    });
+
+    await prisma.staff.update({
+      where: { id: staff.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    const response = NextResponse.json({
+      success: true,
+      staff: {
+        id: staff.id,
+        staffCode: staff.staffCode,
+        name: staff.name,
+        role: staff.role,
+        mobile: staff.mobile,
+        address: staff.address,
+        joiningDate: staff.joiningDate?.toISOString() ?? null,
+        isActive: staff.isActive,
+        username: staff.username,
+        loginEnabled: staff.loginEnabled,
+        lastLoginAt: new Date().toISOString(),
+      },
+    });
+
+    // IMPORTANT:
+    // Secure cookies are enabled in production, but disabled on localhost.
+    // This allows the browser to send the staff_session cookie over
+    // http://localhost:3000 during local development.
+    const isProduction = process.env.NODE_ENV === "production";
+
+    response.cookies.set({
+      name: "staff_session",
+      value: rawToken,
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+      path: "/",
+      expires: expiresAt,
+    });
+
+    return response;
+  } catch (error) {
+    console.error("POST /api/staff/login error:", error);
+
+    return NextResponse.json(
+      { success: false, message: "Unable to sign in. Please try again." },
+      { status: 500 },
     );
   }
 }

@@ -326,6 +326,133 @@ export async function POST(request: NextRequest) {
   }
 }
 
+export async function PUT(request: NextRequest) {
+  try {
+    const staff = await getAuthenticatedStaff(request);
+
+    if (!staff) {
+      return NextResponse.json(
+        { success: false, message: "Your staff session has expired. Please login again." },
+        { status: 401 }
+      );
+    }
+
+    if (!isAdminRole(staff.role)) {
+      return NextResponse.json(
+        { success: false, message: "Administrator access is required to edit attendance records." },
+        { status: 403 }
+      );
+    }
+
+    const body = (await request.json()) as Record<string, unknown>;
+    const attendanceId = Number(body.attendanceId);
+    const targetStaffId = Number(body.staffId);
+    const attendanceDate = String(body.attendanceDate ?? "").trim();
+    const status = String(body.status ?? "").trim();
+    const checkInRaw = body.checkIn;
+    const checkOutRaw = body.checkOut;
+    const remarksRaw = body.remarks;
+
+    const allowedStatuses = ["Present", "Half Day", "Leave", "Absent"];
+
+    if (!Number.isInteger(attendanceId) || attendanceId <= 0) {
+      return NextResponse.json({ success: false, message: "Invalid attendance ID." }, { status: 400 });
+    }
+
+    if (!Number.isInteger(targetStaffId) || targetStaffId <= 0) {
+      return NextResponse.json({ success: false, message: "Invalid staff ID." }, { status: 400 });
+    }
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(attendanceDate)) {
+      return NextResponse.json({ success: false, message: "Invalid attendance date." }, { status: 400 });
+    }
+
+    if (!allowedStatuses.includes(status)) {
+      return NextResponse.json({ success: false, message: "Invalid attendance status." }, { status: 400 });
+    }
+
+    const existing = await prisma.attendance.findUnique({
+      where: { id: attendanceId },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ success: false, message: "Attendance record not found." }, { status: 404 });
+    }
+
+    if (existing.staffId !== targetStaffId || existing.attendanceDate !== attendanceDate) {
+      return NextResponse.json(
+        { success: false, message: "Attendance record does not match the selected staff member/date." },
+        { status: 400 }
+      );
+    }
+
+    const targetStaff = await prisma.staff.findUnique({
+      where: { id: targetStaffId },
+      select: { id: true, name: true, staffCode: true },
+    });
+
+    if (!targetStaff) {
+      return NextResponse.json({ success: false, message: "Staff member not found." }, { status: 404 });
+    }
+
+    let checkIn: Date | null = null;
+    let checkOut: Date | null = null;
+
+    if (status === "Present" || status === "Half Day") {
+      if (typeof checkInRaw !== "string" || !checkInRaw.trim()) {
+        return NextResponse.json(
+          { success: false, message: "Check-in time is required for Present or Half Day." },
+          { status: 400 }
+        );
+      }
+
+      checkIn = new Date(checkInRaw);
+      if (Number.isNaN(checkIn.getTime())) {
+        return NextResponse.json({ success: false, message: "Invalid check-in time." }, { status: 400 });
+      }
+
+      if (typeof checkOutRaw === "string" && checkOutRaw.trim()) {
+        checkOut = new Date(checkOutRaw);
+        if (Number.isNaN(checkOut.getTime())) {
+          return NextResponse.json({ success: false, message: "Invalid check-out time." }, { status: 400 });
+        }
+
+        if (checkOut.getTime() <= checkIn.getTime()) {
+          return NextResponse.json(
+            { success: false, message: "Check-out time must be later than check-in time." },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
+    const remarks =
+      remarksRaw == null ? null : String(remarksRaw).trim() || null;
+
+    const updatedAttendance = await prisma.attendance.update({
+      where: { id: attendanceId },
+      data: {
+        status,
+        checkIn,
+        checkOut,
+        remarks,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: `Attendance correction saved for ${targetStaff.name}.`,
+      attendance: updatedAttendance,
+    });
+  } catch (error) {
+    console.error("ADMIN ATTENDANCE EDIT ERROR:", error);
+    return NextResponse.json(
+      { success: false, message: "Unable to save attendance correction." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     const staff = await getAuthenticatedStaff(request);

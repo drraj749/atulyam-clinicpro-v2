@@ -30,6 +30,13 @@ type Attendance = {
   locationVerified?: boolean;
 };
 
+type AttendanceEditForm = {
+  status: "Present" | "Half Day" | "Leave" | "Absent";
+  checkIn: string;
+  checkOut: string;
+  remarks: string;
+};
+
 type GeoLocationData = {
   latitude: number;
   longitude: number;
@@ -182,6 +189,13 @@ export default function StaffDashboard() {
   const [saving, setSaving] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedRecord, setSelectedRecord] = useState<Attendance | null>(null);
+  const [editingRecord, setEditingRecord] = useState<Attendance | null>(null);
+  const [editForm, setEditForm] = useState<AttendanceEditForm>({
+    status: "Present",
+    checkIn: "",
+    checkOut: "",
+    remarks: "",
+  });
   const [errorMessage, setErrorMessage] = useState("");
 
   const admin = isAdminRole(staff?.role);
@@ -408,6 +422,88 @@ export default function StaffDashboard() {
     } catch (error) {
       console.error("CHECKOUT ERROR:", error);
       alert("Unable to complete check-out.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function toDateTimeLocal(value: string | null): string {
+    if (!value) return "";
+    const date = new Date(value);
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+  }
+
+  function openEditAttendance(record: Attendance) {
+    if (!admin) return;
+
+    setEditingRecord(record);
+    setEditForm({
+      status: (["Present", "Half Day", "Leave", "Absent"].includes(record.status)
+        ? record.status
+        : "Present") as AttendanceEditForm["status"],
+      checkIn: toDateTimeLocal(record.checkIn),
+      checkOut: toDateTimeLocal(record.checkOut),
+      remarks: record.remarks ?? "",
+    });
+  }
+
+  async function saveAttendanceCorrection() {
+    if (!admin || !editingRecord || !selectedStaffId) return;
+
+    if ((editForm.status === "Present" || editForm.status === "Half Day") && !editForm.checkIn) {
+      alert("Check-in time is required for Present or Half Day.");
+      return;
+    }
+
+    if (editForm.checkIn && editForm.checkOut) {
+      const start = new Date(editForm.checkIn).getTime();
+      const end = new Date(editForm.checkOut).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+        alert("Check-out must be later than check-in.");
+        return;
+      }
+    }
+
+    setSaving(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/staff/attendance", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          attendanceId: editingRecord.id,
+          staffId: selectedStaffId,
+          attendanceDate: editingRecord.attendanceDate,
+          status: editForm.status,
+          checkIn: editForm.checkIn || null,
+          checkOut: editForm.checkOut || null,
+          remarks: editForm.remarks.trim() || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.status === 401) {
+        localStorage.removeItem("staffSession");
+        router.replace("/staff/login");
+        return;
+      }
+
+      if (!response.ok) {
+        alert(result.message || "Unable to save attendance correction.");
+        return;
+      }
+
+      setEditingRecord(null);
+      setSelectedRecord(null);
+      await refreshAttendance();
+      alert(result.message || "Attendance correction saved successfully.");
+    } catch (error) {
+      console.error("ATTENDANCE CORRECTION ERROR:", error);
+      alert("Unable to save attendance correction.");
     } finally {
       setSaving(false);
     }
@@ -666,7 +762,7 @@ export default function StaffDashboard() {
 
         {!viewingOwnAttendance && admin && (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-900 text-sm">
-            You are viewing <strong>{selectedStaff?.name}</strong>. Attendance actions are available only for your own logged-in account.
+            You are viewing <strong>{selectedStaff?.name}</strong>. As an Administrator, you can review and correct this staff member&apos;s attendance records.
           </div>
         )}
 
@@ -691,7 +787,18 @@ export default function StaffDashboard() {
                 <p className="text-sm text-gray-500">Attendance Details</p>
                 <h2 className="text-xl font-bold text-blue-900">{formatDate(selectedRecord.attendanceDate)}</h2>
               </div>
-              <button type="button" onClick={() => setSelectedRecord(null)} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 font-bold">×</button>
+              <div className="flex items-center gap-2">
+                {admin && (
+                  <button
+                    type="button"
+                    onClick={() => openEditAttendance(selectedRecord)}
+                    className="px-4 py-2 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold text-sm"
+                  >
+                    Edit Attendance
+                  </button>
+                )}
+                <button type="button" onClick={() => setSelectedRecord(null)} className="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 font-bold">×</button>
+              </div>
             </div>
 
             <div className="p-5 space-y-5">
@@ -720,6 +827,118 @@ export default function StaffDashboard() {
                   <p className="mt-1 text-gray-600">{selectedRecord.remarks}</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingRecord && admin && (
+        <div
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !saving) setEditingRecord(null);
+          }}
+        >
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden">
+            <div className="bg-blue-900 text-white p-5 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-blue-200 text-sm">Administrator Attendance Correction</p>
+                <h2 className="text-xl font-bold mt-1">{formatDate(editingRecord.attendanceDate)}</h2>
+                <p className="text-blue-100 text-sm mt-1">{selectedStaff?.name ?? "Staff member"}</p>
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditingRecord(null)}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 font-bold"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="p-5 space-y-5">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Attendance Status</label>
+                <select
+                  value={editForm.status}
+                  onChange={(e) =>
+                    setEditForm((current) => ({
+                      ...current,
+                      status: e.target.value as AttendanceEditForm["status"],
+                    }))
+                  }
+                  disabled={saving}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Present">Present</option>
+                  <option value="Half Day">Half Day</option>
+                  <option value="Leave">Leave</option>
+                  <option value="Absent">Absent</option>
+                </select>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check-in</label>
+                  <input
+                    type="datetime-local"
+                    value={editForm.checkIn}
+                    onChange={(e) => setEditForm((current) => ({ ...current, checkIn: e.target.value }))}
+                    disabled={saving || editForm.status === "Leave" || editForm.status === "Absent"}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Check-out</label>
+                  <input
+                    type="datetime-local"
+                    value={editForm.checkOut}
+                    onChange={(e) => setEditForm((current) => ({ ...current, checkOut: e.target.value }))}
+                    disabled={saving || editForm.status === "Leave" || editForm.status === "Absent"}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>
+                <textarea
+                  value={editForm.remarks}
+                  onChange={(e) => setEditForm((current) => ({ ...current, remarks: e.target.value }))}
+                  disabled={saving}
+                  rows={3}
+                  placeholder="Reason for correction or additional remarks"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-sm text-yellow-900">
+                <p className="font-bold">Administrator correction</p>
+                <p className="mt-1">
+                  This changes the attendance record for <strong>{selectedStaff?.name}</strong>.
+                  Existing GPS information is preserved; corrected times are used for working-hours calculation.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row justify-end gap-3">
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => setEditingRecord(null)}
+                  className="px-5 py-2.5 rounded-lg border border-gray-300 hover:bg-gray-50 font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void saveAttendanceCorrection()}
+                  className="px-5 py-2.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-bold disabled:bg-gray-400"
+                >
+                  {saving ? "Saving..." : "Save Correction"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

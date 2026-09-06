@@ -1,545 +1,167 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  randomBytes,
-  scryptSync,
-} from "crypto";
-
+import crypto from "crypto";
 import { prisma } from "@/app/lib/prisma";
 
-type Params = {
-  params: Promise<{
-    id: string;
-  }>;
-};
+const ADMIN_ROLES = new Set([
+  "admin",
+  "administrator",
+  "hospital admin",
+  "hospital administrator",
+  "owner",
+  "manager",
+  "hr",
+  "hr manager",
+]);
 
-function hashPassword(
-  password: string
-) {
-  const salt =
-    randomBytes(16).toString("hex");
-
-  const hash =
-    scryptSync(
-      password,
-      salt,
-      64
-    ).toString("hex");
-
-  return `${salt}:${hash}`;
+function isAdmin(role: string | null | undefined) {
+  return ADMIN_ROLES.has((role || "").trim().toLowerCase());
 }
 
-function sanitizeStaff(staff: any) {
+async function getAuthenticatedStaff(request: NextRequest) {
+  const token = request.cookies.get("staff_session")?.value;
+  if (!token) return null;
+
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+  const session = await prisma.staffSession.findUnique({
+    where: { tokenHash },
+    include: { staff: true },
+  });
+
+  if (!session || session.expiresAt <= new Date() || !session.staff.isActive || !session.staff.loginEnabled) {
+    return null;
+  }
+
+  return session.staff;
+}
+
+function serializeStaff(staff: {
+  id: number;
+  staffCode: string;
+  name: string;
+  role: string;
+  mobile: string | null;
+  address: string | null;
+  joiningDate: Date | null;
+  isActive: boolean;
+  username: string | null;
+  loginEnabled: boolean;
+  lastLoginAt: Date | null;
+}) {
   return {
-    id: staff.id,
-    staffCode: staff.staffCode,
-    name: staff.name,
-    role: staff.role,
-    mobile: staff.mobile,
-    address: staff.address,
-    joiningDate: staff.joiningDate,
-    isActive: staff.isActive,
-
-    username: staff.username,
-
-    loginEnabled:
-      staff.loginEnabled,
-
-    lastLoginAt:
-      staff.lastLoginAt,
+    ...staff,
+    joiningDate: staff.joiningDate?.toISOString() ?? null,
+    lastLoginAt: staff.lastLoginAt?.toISOString() ?? null,
   };
+}
+
+async function getId(context: { params: Promise<{ id: string }> }) {
+  const params = await context.params;
+  const id = Number(params.id);
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: Params
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } =
-      await params;
+    const current = await getAuthenticatedStaff(request);
+    if (!current) return NextResponse.json({ success: false, message: "Authentication required." }, { status: 401 });
+    if (!isAdmin(current.role)) return NextResponse.json({ success: false, message: "Administrator access required." }, { status: 403 });
 
-    const staff =
-      await prisma.staff.findUnique({
-        where: {
-          id: Number(id),
-        },
-      });
+    const id = await getId(context);
+    if (!id) return NextResponse.json({ success: false, message: "Invalid staff ID." }, { status: 400 });
 
-    if (!staff) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff member not found.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
+    const staff = await prisma.staff.findUnique({ where: { id } });
+    if (!staff) return NextResponse.json({ success: false, message: "Staff member not found." }, { status: 404 });
 
-    return NextResponse.json({
-      success: true,
-      staff:
-        sanitizeStaff(staff),
-    });
+    return NextResponse.json({ success: true, staff: serializeStaff(staff) });
   } catch (error) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: "Server Error",
-      },
-      {
-        status: 500,
-      }
-    );
+    console.error("GET /api/staff/[id] error:", error);
+    return NextResponse.json({ success: false, message: "Unable to load staff member." }, { status: 500 });
   }
 }
 
-export async function PUT(
+export async function PATCH(
   request: NextRequest,
-  { params }: Params
+  context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { id } =
-      await params;
+    const current = await getAuthenticatedStaff(request);
+    if (!current) return NextResponse.json({ success: false, message: "Authentication required." }, { status: 401 });
+    if (!isAdmin(current.role)) return NextResponse.json({ success: false, message: "Administrator access required." }, { status: 403 });
 
-    const staffId =
-      Number(id);
+    const id = await getId(context);
+    if (!id) return NextResponse.json({ success: false, message: "Invalid staff ID." }, { status: 400 });
 
-    if (
-      !Number.isInteger(
-        staffId
-      )
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Invalid staff ID.",
-        },
-        {
-          status: 400,
+    const existing = await prisma.staff.findUnique({ where: { id } });
+    if (!existing) return NextResponse.json({ success: false, message: "Staff member not found." }, { status: 404 });
+
+    const body = await request.json();
+    const data: {
+      name?: string;
+      role?: string;
+      mobile?: string | null;
+      address?: string | null;
+      joiningDate?: Date | null;
+      username?: string | null;
+      loginEnabled?: boolean;
+      isActive?: boolean;
+    } = {};
+
+    if (body.name !== undefined) {
+      const name = String(body.name).trim();
+      if (!name) return NextResponse.json({ success: false, message: "Name cannot be empty." }, { status: 400 });
+      data.name = name;
+    }
+
+    if (body.role !== undefined) {
+      const role = String(body.role).trim();
+      if (!role) return NextResponse.json({ success: false, message: "Role cannot be empty." }, { status: 400 });
+      data.role = role;
+    }
+
+    if (body.mobile !== undefined) data.mobile = body.mobile ? String(body.mobile).trim() : null;
+    if (body.address !== undefined) data.address = body.address ? String(body.address).trim() : null;
+    if (body.joiningDate !== undefined) data.joiningDate = body.joiningDate ? new Date(body.joiningDate) : null;
+    if (body.loginEnabled !== undefined) data.loginEnabled = Boolean(body.loginEnabled);
+    if (body.isActive !== undefined) data.isActive = Boolean(body.isActive);
+
+    if (body.username !== undefined) {
+      const username = body.username ? String(body.username).trim() : null;
+
+      if (username) {
+        const duplicate = await prisma.staff.findFirst({
+          where: {
+            username,
+            NOT: { id },
+          },
+        });
+        if (duplicate) {
+          return NextResponse.json({ success: false, message: "Username is already in use." }, { status: 409 });
         }
-      );
-    }
-
-    const body =
-      await request.json();
-
-    const name =
-      String(
-        body.name ?? ""
-      ).trim();
-
-    const role =
-      String(
-        body.role ?? ""
-      ).trim();
-
-    const staffCode =
-      String(
-        body.staffCode ?? ""
-      ).trim();
-
-    if (!name) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff name is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!role) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff role is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    if (!staffCode) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff code is required.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    const existingStaff =
-      await prisma.staff.findFirst({
-        where: {
-          staffCode,
-
-          NOT: {
-            id: staffId,
-          },
-        },
-      });
-
-    if (existingStaff) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff code already exists.",
-        },
-        {
-          status: 400,
-        }
-      );
-    }
-
-    let joiningDate:
-      Date | null = null;
-
-    if (body.joiningDate) {
-      const parsedDate =
-        new Date(
-          body.joiningDate
-        );
-
-      if (
-        !isNaN(
-          parsedDate.getTime()
-        )
-      ) {
-        joiningDate =
-          parsedDate;
-      }
-    }
-
-    /*
-     * LOGIN SETTINGS
-     */
-
-    let username:
-      string | null =
-      null;
-
-    if (
-      body.username !==
-      undefined
-    ) {
-      const value =
-        String(
-          body.username ?? ""
-        )
-          .trim()
-          .toLowerCase();
-
-      username =
-        value || null;
-    }
-
-    const loginEnabled =
-      body.loginEnabled ===
-      true;
-
-    /*
-     * Check username uniqueness
-     */
-
-    if (username) {
-      const existingUsername =
-        await prisma.staff.findFirst(
-          {
-            where: {
-              username,
-
-              NOT: {
-                id: staffId,
-              },
-            },
-          }
-        );
-
-      if (existingUsername) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Username already exists. Please choose another username.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-    }
-
-    /*
-     * PASSWORD
-     *
-     * Only change password when
-     * a new password is supplied.
-     */
-
-    const newPassword =
-      String(
-        body.password ?? ""
-      );
-
-    const confirmPassword =
-      String(
-        body.confirmPassword ?? ""
-      );
-
-    let passwordHash:
-      string | undefined;
-
-    if (newPassword) {
-      if (
-        newPassword.length <
-        6
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Password must be at least 6 characters.",
-          },
-          {
-            status: 400,
-          }
-        );
       }
 
-      if (
-        newPassword !==
-        confirmPassword
-      ) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Password and Confirm Password do not match.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      passwordHash =
-        hashPassword(
-          newPassword
-        );
+      data.username = username;
     }
 
-    /*
-     * Login cannot be enabled
-     * without username + password.
-     */
-
-    if (loginEnabled) {
-      const currentStaff =
-        await prisma.staff.findUnique(
-          {
-            where: {
-              id: staffId,
-            },
-          }
-        );
-
-      if (!currentStaff) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Staff member not found.",
-          },
-          {
-            status: 404,
-          }
-        );
-      }
-
-      const finalUsername =
-        username ??
-        currentStaff.username;
-
-      const finalPasswordHash =
-        passwordHash ??
-        currentStaff.passwordHash;
-
-      if (!finalUsername) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Username is required to enable login.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
-
-      if (!finalPasswordHash) {
-        return NextResponse.json(
-          {
-            success: false,
-            message:
-              "Please set a password before enabling login.",
-          },
-          {
-            status: 400,
-          }
-        );
-      }
+    if (data.loginEnabled === true && !(data.username ?? existing.username)) {
+      return NextResponse.json({ success: false, message: "A username is required when login is enabled." }, { status: 400 });
     }
 
-    /*
-     * Update staff
-     */
-
-    const staff =
-      await prisma.staff.update({
-        where: {
-          id: staffId,
-        },
-
-        data: {
-          staffCode,
-
-          name,
-
-          role,
-
-          mobile:
-            String(
-              body.mobile ?? ""
-            ).trim() ||
-            null,
-
-          address:
-            String(
-              body.address ?? ""
-            ).trim() ||
-            null,
-
-          joiningDate,
-
-          isActive:
-            body.isActive ===
-            undefined
-              ? true
-              : Boolean(
-                  body.isActive
-                ),
-
-          username,
-
-          loginEnabled,
-
-          ...(passwordHash
-            ? {
-                passwordHash,
-              }
-            : {}),
-        },
-      });
-
-    return NextResponse.json({
-      success: true,
-      staff:
-        sanitizeStaff(staff),
-    });
-  } catch (error: any) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          error?.message ||
-          "Unable to update staff.",
-      },
-      {
-        status: 500,
-      }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: Params
-) {
-  try {
-    const { id } =
-      await params;
-
-    const staffId =
-      Number(id);
-
-    const staff =
-      await prisma.staff.findUnique({
-        where: {
-          id: staffId,
-        },
-      });
-
-    if (!staff) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Staff member not found.",
-        },
-        {
-          status: 404,
-        }
-      );
-    }
-
-    await prisma.staff.update({
-      where: {
-        id: staffId,
-      },
-
-      data: {
-        isActive: false,
-
-        loginEnabled: false,
-      },
+    const updated = await prisma.staff.update({
+      where: { id },
+      data,
     });
 
-    return NextResponse.json({
-      success: true,
+    if (data.isActive === false || data.loginEnabled === false) {
+      await prisma.staffSession.deleteMany({ where: { staffId: id } });
+    }
 
-      message:
-        "Staff member deactivated successfully.",
-    });
+    return NextResponse.json({ success: true, staff: serializeStaff(updated) });
   } catch (error) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message:
-          "Unable to deactivate staff.",
-      },
-      {
-        status: 500,
-      }
-    );
+    console.error("PATCH /api/staff/[id] error:", error);
+    return NextResponse.json({ success: false, message: "Unable to update staff member." }, { status: 500 });
   }
 }
