@@ -40,6 +40,82 @@ function getIndiaDate(): string {
   }).format(new Date());
 }
 
+
+function parseIndiaDateTime(value: unknown): Date | null {
+  if (typeof value !== "string") return null;
+
+  const match = value.trim().match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/
+  );
+
+  if (!match) return null;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6] ?? "0");
+
+  if (
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
+    return null;
+  }
+
+  // datetime-local values in the administrator UI represent hospital time
+  // (Asia/Kolkata, UTC+05:30), not the server's timezone.
+  const utcMillis = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    minute - 330,
+    second,
+    0
+  );
+
+  const date = new Date(utcMillis);
+
+  // Reject impossible calendar dates such as 2026-02-31.
+  const indiaParts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const parts = Object.fromEntries(
+    indiaParts.map((part) => [part.type, part.value])
+  );
+
+  if (
+    Number(parts.year) !== year ||
+    Number(parts.month) !== month ||
+    Number(parts.day) !== day ||
+    Number(parts.hour) !== hour ||
+    Number(parts.minute) !== minute ||
+    Number(parts.second) !== second
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
 function isValidMonth(month: string): boolean {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(month);
 }
@@ -406,15 +482,21 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      checkIn = new Date(checkInRaw);
-      if (Number.isNaN(checkIn.getTime())) {
-        return NextResponse.json({ success: false, message: "Invalid check-in time." }, { status: 400 });
+      checkIn = parseIndiaDateTime(checkInRaw);
+      if (!checkIn) {
+        return NextResponse.json(
+          { success: false, message: "Invalid check-in time. Use hospital time in YYYY-MM-DD HH:MM format." },
+          { status: 400 }
+        );
       }
 
       if (typeof checkOutRaw === "string" && checkOutRaw.trim()) {
-        checkOut = new Date(checkOutRaw);
-        if (Number.isNaN(checkOut.getTime())) {
-          return NextResponse.json({ success: false, message: "Invalid check-out time." }, { status: 400 });
+        checkOut = parseIndiaDateTime(checkOutRaw);
+        if (!checkOut) {
+          return NextResponse.json(
+            { success: false, message: "Invalid check-out time. Use hospital time in YYYY-MM-DD HH:MM format." },
+            { status: 400 }
+          );
         }
 
         if (checkOut.getTime() <= checkIn.getTime()) {
