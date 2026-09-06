@@ -57,6 +57,10 @@ const menu = [
         name: "Attendance",
         href: "/attendance",
       },
+      {
+        name: "Staff Dashboard",
+        href: "/staff-dashboard",
+      },
     ],
   },
 
