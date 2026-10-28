@@ -296,15 +296,6 @@ export default function PrescriptionCard({
         route:
           oldMedicine?.route ?? "Oral",
 
-        morning:
-          oldMedicine?.morning ?? false,
-
-        afternoon:
-          oldMedicine?.afternoon ?? false,
-
-        night:
-          oldMedicine?.night ?? false,
-
         beforeFood:
           oldMedicine?.beforeFood ?? false,
 
