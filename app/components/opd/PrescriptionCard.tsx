@@ -14,6 +14,7 @@ const emptyMedicine = (): MedicineRow => ({
   clientId: crypto.randomUUID(),
 
   medicineName: "",
+  dosageForm: "",
   strength: "",
 
   dosage: "",
@@ -261,6 +262,9 @@ export default function PrescriptionCard({
         medicineName:
           oldMedicine?.medicineName ?? "",
 
+        dosageForm:
+          oldMedicine?.dosageForm ?? "",
+
         strength:
           oldMedicine?.strength ?? "",
 
@@ -331,6 +335,8 @@ export default function PrescriptionCard({
   } else if (field === "strength") {
     medicine.strength =
       value as string;
+  } else if (field === "dosageForm") {
+    medicine.dosageForm = value as string;
   } else if (field === "dosage") {
     medicine.dosage =
       value as string;
@@ -348,8 +354,9 @@ export default function PrescriptionCard({
     medicine.description =
       value as string;
   } else if (field === "evening") {
-    medicine.evening =
-      value as boolean;
+    medicine.evening = value as boolean;
+    if (value === true) medicine.frequency = "EVENING";
+    else if (medicine.frequency === "EVENING") medicine.frequency = "";
   } else if (field === "route") {
     medicine.route =
       value as MedicineRow["route"];
@@ -375,7 +382,8 @@ export default function PrescriptionCard({
       if (
         field === "dosage" ||
         field === "frequency" ||
-        field === "duration"
+        field === "duration" ||
+        field === "evening"
       ) {
         medicine.quantity =
           calculateQuantity(
@@ -416,6 +424,9 @@ export default function PrescriptionCard({
     medicine.brandName ||
     medicine.genericName ||
     "",
+
+  dosageForm:
+    medicine.dosageForm ?? "",
 
   strength:
     medicine.strength ?? "",
@@ -548,7 +559,7 @@ export default function PrescriptionCard({
 
             {/* MAIN MEDICINE ROW */}
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
 
               {/* MEDICINE SEARCH */}
 
@@ -755,6 +766,15 @@ export default function PrescriptionCard({
                 )}
               </div>
 
+              {/* DOSAGE FORM */}
+              <input
+                value={medicine.dosageForm ?? ""}
+                readOnly
+                placeholder="Dosage Form (from Medicine Master)"
+                className="border rounded-lg p-2 w-full bg-gray-100"
+                aria-label="Dosage form"
+              />
+
               {/* DOSAGE */}
 
               <select
@@ -804,6 +824,10 @@ export default function PrescriptionCard({
 
                 <option value="2 Puffs">
                   2 Puffs
+                </option>
+
+                <option value="Spray">
+                  Spray (as directed)
                 </option>
 
                 <option value="1 Spray">
@@ -1018,13 +1042,17 @@ export default function PrescriptionCard({
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <textarea
-                rows={2}
-                value={medicine.description ?? ""}
-                onChange={(e) => updateMedicine(index, "description", e.target.value)}
-                placeholder="Medicine description / special instructions (optional; prints under medicine name)"
-                className="border rounded-lg p-2 w-full"
-              />
+              <label className="block text-sm font-medium text-gray-700 md:col-span-2">
+                Medicine Description / Special Instructions
+                <textarea
+                  rows={2}
+                  value={medicine.description ?? ""}
+                  onChange={(e) => updateMedicine(index, "description", e.target.value)}
+                  placeholder="Enter extra instructions for this medicine"
+                  className="border rounded-lg p-2 w-full mt-1"
+                  aria-label="Medicine description"
+                />
+              </label>
             </div>
 
             {/* SECOND ROW */}
@@ -1054,6 +1082,16 @@ export default function PrescriptionCard({
                   ? medicine.quantity
                   : "-"}
               </div>
+
+              {/* EVENING DOSE */}
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={Boolean(medicine.evening || medicine.frequency === "EVENING")}
+                  onChange={(e) => updateMedicine(index, "evening", e.target.checked)}
+                />
+                Evening dose
+              </label>
 
               {/* BEFORE FOOD */}
 

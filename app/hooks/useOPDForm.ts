@@ -21,7 +21,7 @@ type Patient = {
 export const initialForm: OPDForm = {
   doctor: "Dr. Rahul Kumar",
   department: "General Medicine",
-  fee: "500",
+  fee: "200",
   paymentMode: "Cash",
   followUpDate: "",
 
@@ -187,6 +187,7 @@ medicines:
     clientId: crypto.randomUUID(),
 
     medicineName: item.medicineName ?? "",
+    dosageForm: item.dosageForm ?? "",
     strength: item.strength ?? "",
     dosage: item.dosage ?? "",
     frequency: item.frequency ?? "",
