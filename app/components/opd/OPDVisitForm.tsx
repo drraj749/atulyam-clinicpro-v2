@@ -103,6 +103,53 @@ const {
   setForm={setForm}
 />
 
+      <div className="bg-white rounded-xl shadow p-6">
+        <h2 className="text-2xl font-bold text-blue-900 mb-5">
+          Consultation Fee
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="fee" className="block font-medium mb-2">
+              Consultation Fee (INR)
+            </label>
+            <input
+              id="fee"
+              name="fee"
+              type="number"
+              min="0"
+              step="1"
+              value={form.fee}
+              onChange={handleChange}
+              className="border rounded-lg p-3 w-full"
+              placeholder="200"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="paymentMode" className="block font-medium mb-2">
+              Payment Mode
+            </label>
+            <select
+              id="paymentMode"
+              name="paymentMode"
+              value={form.paymentMode}
+              onChange={handleChange}
+              className="border rounded-lg p-3 w-full bg-white"
+            >
+              <option value="Cash">Cash</option>
+              <option value="UPI">UPI</option>
+              <option value="Card">Card</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <p className="text-sm text-gray-500 mt-3">
+          Standard OPD consultation fee: ₹200
+        </p>
+      </div>
+
       <div className="bg-white rounded-xl shadow p-6 flex justify-end">
 
         <button

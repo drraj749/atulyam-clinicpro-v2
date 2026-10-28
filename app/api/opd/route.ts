@@ -190,7 +190,7 @@ export async function POST(request: NextRequest) {
           body.fee !== "" &&
           body.fee != null
             ? Number(body.fee)
-            : null,
+            : 200,
 
         paymentMode:
           body.paymentMode ||

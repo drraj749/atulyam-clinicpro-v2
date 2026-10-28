@@ -14,7 +14,6 @@ export type MedicineRow = {
   clientId: string;
 
   medicineName: string;
-  dosageForm?: string;
   strength: string;
 
   dosage: string;

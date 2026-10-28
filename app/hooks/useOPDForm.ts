@@ -147,7 +147,7 @@ const followUpFromId = followUpVisitId
       setForm({
         doctor: visit.doctor ?? "",
         department: visit.department ?? "",
-        fee: visit.fee?.toString() ?? "",
+        fee: isFollowUp ? "200" : (visit.fee?.toString() ?? "200"),
         paymentMode: visit.paymentMode ?? "",
         followUpDate: isFollowUp
   ? ""
@@ -187,7 +187,6 @@ medicines:
     clientId: crypto.randomUUID(),
 
     medicineName: item.medicineName ?? "",
-    dosageForm: item.dosageForm ?? "",
     strength: item.strength ?? "",
     dosage: item.dosage ?? "",
     frequency: item.frequency ?? "",
