@@ -163,9 +163,14 @@ export async function POST(request: NextRequest) {
                 m.instruction ?? ""
               ).trim(),
 
+              description: String(
+                m.description ?? ""
+              ).trim(),
+
               morning,
               afternoon,
               night,
+              evening: getBoolean(m.evening, false),
 
               beforeFood: getBoolean(
                 m.beforeFood,

@@ -92,9 +92,11 @@ model PrescriptionItem {
   frequency      String?
   duration       String?
   instruction    String?
+  description    String?
   morning        Boolean @default(false)
   afternoon      Boolean @default(false)
   night          Boolean @default(false)
+  evening        Boolean @default(false)
   beforeFood     Boolean @default(false)
   afterFood      Boolean @default(false)
   sos            Boolean @default(false)
@@ -140,9 +142,11 @@ model DiseaseTemplateMedicine {
   frequency    String?
   duration     String?
   instruction  String?
+  description  String?
   morning      Boolean @default(false)
   afternoon    Boolean @default(false)
   night        Boolean @default(false)
+  evening      Boolean @default(false)
   beforeFood   Boolean @default(false)
   afterFood    Boolean @default(false)
   sos          Boolean @default(false)

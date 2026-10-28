@@ -24,6 +24,7 @@ function createMedicine(): PrescriptionMedicine {
     morning: false,
     afternoon: false,
     night: false,
+    evening: false,
 
     beforeFood: false,
     afterFood: false,
@@ -32,6 +33,7 @@ function createMedicine(): PrescriptionMedicine {
 
     duration: "",
     instruction: "",
+    description: "",
 
     quantity: null,
     route: "",
@@ -59,6 +61,10 @@ const frequencyOptions = [
   {
     value: "0-0-1",
     label: "0-0-1 (Night)",
+  },
+  {
+    value: "EVENING",
+    label: "Evening",
   },
   {
     value: "1-1-0",
@@ -128,6 +134,7 @@ const frequencyMap: Record<string, number> = {
   "1-0-0": 1,
   "0-1-0": 1,
   "0-0-1": 1,
+  EVENING: 1,
 
   "1-1-0": 2,
   "1-0-1": 2,
@@ -456,6 +463,12 @@ export default function DiseaseTemplateEditor({
                 m.instruction ??
                 "",
 
+              description:
+                m.description ??
+                "",
+
+              evening: Boolean(m.evening),
+
               quantity:
                 m.quantity !==
                   null &&
@@ -565,10 +578,18 @@ export default function DiseaseTemplateEditor({
           current.frequency =
             frequency;
 
-          if (
+          if (frequency === "EVENING") {
+            current.morning = false;
+            current.afternoon = false;
+            current.night = false;
+            current.evening = true;
+          }
+
+          else if (
             frequency ===
               "1-0-0"
           ) {
+            current.evening = false;
             current.morning =
               true;
             current.afternoon =
@@ -581,6 +602,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "0-1-0"
           ) {
+            current.evening = false;
             current.morning =
               false;
             current.afternoon =
@@ -593,6 +615,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "0-0-1"
           ) {
+            current.evening = false;
             current.morning =
               false;
             current.afternoon =
@@ -605,6 +628,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "1-1-0"
           ) {
+            current.evening = false;
             current.morning =
               true;
             current.afternoon =
@@ -617,6 +641,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "1-0-1"
           ) {
+            current.evening = false;
             current.morning =
               true;
             current.afternoon =
@@ -629,6 +654,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "0-1-1"
           ) {
+            current.evening = false;
             current.morning =
               false;
             current.afternoon =
@@ -641,6 +667,7 @@ export default function DiseaseTemplateEditor({
             frequency ===
               "1-1-1"
           ) {
+            current.evening = false;
             current.morning =
               true;
             current.afternoon =
@@ -650,6 +677,7 @@ export default function DiseaseTemplateEditor({
           }
 
           else {
+            current.evening = false;
             current.morning =
               false;
             current.afternoon =
@@ -890,6 +918,12 @@ export default function DiseaseTemplateEditor({
 
                         instruction:
                           m.instruction,
+
+                        description:
+                          m.description,
+
+                        evening:
+                          Boolean(m.evening),
 
                         morning:
                           Boolean(
@@ -1225,6 +1259,14 @@ export default function DiseaseTemplateEditor({
 
               </div>
 
+              <textarea
+                rows={2}
+                className="border rounded-lg p-2 w-full"
+                placeholder="Medicine description (optional)"
+                value={medicine.description ?? ""}
+                onChange={(e) => updateMedicineField(index, "description", e.target.value)}
+              />
+
               {/* =========================
                   ROUTE
               ========================= */}
@@ -1360,6 +1402,15 @@ export default function DiseaseTemplateEditor({
 
                   Night
 
+                </label>
+
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(medicine.evening)}
+                    onChange={(e) => updateMedicineField(index, "evening", e.target.checked)}
+                  />
+                  Evening
                 </label>
 
               </div>

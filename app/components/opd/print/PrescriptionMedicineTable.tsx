@@ -8,6 +8,8 @@ type Medicine = {
   quantity?: number | null;
   route?: string;
   instruction?: string;
+  description?: string;
+  evening?: boolean;
   morning?: boolean;
   afternoon?: boolean;
   night?: boolean;
@@ -40,6 +42,17 @@ function getSchedule(medicine: Medicine) {
   // =========================
   if (medicine.frequency === "ONE_TIME") {
     return "One Time Only";
+  }
+
+  if (medicine.frequency === "EVENING" || medicine.evening) {
+    const duration =
+      medicine.duration
+        ?.replace(" Days", "D")
+        .replace(" Day", "D")
+        .replace(" Months", "M")
+        .replace(" Month", "M") ?? "";
+
+    return `Evening ${duration}`.trim();
   }
 
   // =========================
@@ -133,6 +146,12 @@ export default function PrescriptionMedicineTable({
                     </span>
                   )}
                 </div>
+
+                {medicine.description && (
+                  <div className="text-[10px] leading-tight whitespace-pre-wrap">
+                    {medicine.description}
+                  </div>
+                )}
 
                 {/* Instruction only appears if entered */}
                 {medicine.instruction && (

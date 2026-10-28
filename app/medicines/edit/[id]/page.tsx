@@ -239,6 +239,7 @@ export default function EditMedicinePage() {
               <option>Drops</option>
               <option>Powder</option>
               <option>Inhaler</option>
+              <option>Spray</option>
               <option>Cream</option>
               <option>Gel</option>
             </select>

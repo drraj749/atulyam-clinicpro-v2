@@ -93,6 +93,8 @@ export async function PUT(
                 frequency: m.frequency,
                 duration: m.duration,
                 instruction: m.instruction,
+                description: m.description,
+                evening: m.evening,
                 morning: m.morning,
                 afternoon: m.afternoon,
                 night: m.night,

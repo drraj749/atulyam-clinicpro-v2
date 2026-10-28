@@ -21,11 +21,15 @@ export type PrescriptionMedicine = {
 
   instruction: string;
 
+  description: string;
+
   morning: boolean;
 
   afternoon: boolean;
 
   night: boolean;
+
+  evening: boolean;
 
   beforeFood: boolean;
 

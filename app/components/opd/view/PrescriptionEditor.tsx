@@ -27,6 +27,7 @@ function createMedicine(): PrescriptionMedicine {
     morning: false,
     afternoon: false,
     night: false,
+    evening: false,
 
     beforeFood: false,
     afterFood: false,
@@ -35,6 +36,7 @@ function createMedicine(): PrescriptionMedicine {
 
     duration: "",
     instruction: "",
+    description: "",
 
     quantity: null,
     route: "",
@@ -107,8 +109,10 @@ const [investigations, setInvestigations] = useState("");
             duration: item.duration ?? "",
 
             instruction: item.instruction ?? "",
+            description: item.description ?? "",
 
             quantity: item.quantity,
+            evening: item.evening ?? false,
 
             route: item.route ?? "",
           }))
@@ -183,8 +187,10 @@ async function applyTemplate(templateId: number) {
           duration: m.duration ?? "",
 
           instruction: m.instruction ?? "",
+          description: m.description ?? "",
 
           quantity: m.quantity,
+          evening: m.evening ?? false,
 
           route: m.route ?? "",
         }))
@@ -265,6 +271,7 @@ function calculateQuantity(
       break;
 
     case "HS":
+    case "EVENING":
       dosesPerDay = 1;
       break;
 
@@ -333,12 +340,14 @@ function updateMedicine(
             duration: m.duration,
 
             instruction: m.instruction,
+            description: m.description,
 
             morning: m.morning,
 
             afternoon: m.afternoon,
 
             night: m.night,
+            evening: m.evening,
 
             beforeFood: m.beforeFood,
 
@@ -504,6 +513,8 @@ return (
         frequency === "TDS" ||
         frequency === "QID",
 
+      evening: frequency === "EVENING",
+
       sos: frequency === "SOS",
 
       quantity:
@@ -520,6 +531,7 @@ return (
   <option value="TDS">TDS - Three Times Daily</option>
   <option value="QID">QID - Four Times Daily</option>
   <option value="HS">HS - Bed Time</option>
+  <option value="EVENING">Evening</option>
   <option value="SOS">SOS</option>
   <option value="ONCE_WEEKLY">Once Weekly</option>
   <option value="ONE_TIME">One Time Only</option>
@@ -578,6 +590,8 @@ return (
                 }
               />
 
+              <textarea rows={2} className="border rounded-lg p-2 md:col-span-4 w-full" placeholder="Medicine description (optional; appears under this medicine on the printed prescription)" value={medicine.description ?? ""} onChange={(e) => updateMedicine(index, { ...medicine, description: e.target.value })} />
+
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3 mt-5">
@@ -622,6 +636,10 @@ return (
                   }
                 />
                 Night
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="checkbox" checked={medicine.evening} onChange={(e) => updateMedicine(index, { ...medicine, evening: e.target.checked })} />
+                Evening
               </label>
 
               <label className="flex items-center gap-2">

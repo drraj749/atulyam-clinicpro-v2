@@ -68,8 +68,10 @@ export async function POST(request: NextRequest) {
             duration: String(m.duration ?? "").trim(),
 
             instruction: String(m.instruction ?? "").trim(),
+            description: String(m.description ?? "").trim(),
 
             morning: Boolean(m.morning),
+            evening: Boolean(m.evening),
             afternoon: Boolean(m.afternoon),
             night: Boolean(m.night),
 
