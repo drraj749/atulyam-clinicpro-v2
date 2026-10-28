@@ -192,9 +192,11 @@ medicines:
     frequency: item.frequency ?? "",
     duration: item.duration ?? "",
     instruction: item.instruction ?? "",
+    description: item.description ?? "",
 
     morning: Boolean(item.morning),
     afternoon: Boolean(item.afternoon),
+    evening: Boolean(item.evening),
     night: Boolean(item.night),
 
     beforeFood: Boolean(item.beforeFood),
@@ -348,8 +350,10 @@ const res = await fetch(url, {
       frequency: medicine.frequency,
       duration: medicine.duration,
       instruction: medicine.instruction,
+      description: medicine.description,
       morning: medicine.morning,
       afternoon: medicine.afternoon,
+      evening: medicine.evening,
       night: medicine.night,
       beforeFood: medicine.beforeFood,
       afterFood: medicine.afterFood,

@@ -20,9 +20,11 @@ const emptyMedicine = (): MedicineRow => ({
   frequency: "",
   duration: "",
   instruction: "",
+  description: "",
 
   morning: false,
   afternoon: false,
+  evening: false,
   night: false,
 
   beforeFood: false,
@@ -42,6 +44,7 @@ const frequencyMap: Record<string, number> = {
   "1-0-0": 1,
   "0-1-0": 1,
   "0-0-1": 1,
+  EVENING: 1,
 
   "1-1-0": 2,
   "1-0-1": 2,
@@ -272,6 +275,20 @@ export default function PrescriptionCard({
 
         instruction:
           oldMedicine?.instruction ?? "",
+        description:
+          oldMedicine?.description ?? "",
+
+        morning:
+          oldMedicine?.morning ?? false,
+
+        afternoon:
+          oldMedicine?.afternoon ?? false,
+
+        evening:
+          oldMedicine?.evening ?? false,
+
+        night:
+          oldMedicine?.night ?? false,
 
         quantity:
           oldMedicine?.quantity ?? "",
@@ -329,12 +346,19 @@ export default function PrescriptionCard({
   } else if (field === "frequency") {
     medicine.frequency =
       value as string;
+    medicine.evening = value === "EVENING";
   } else if (field === "duration") {
     medicine.duration =
       value as string;
   } else if (field === "instruction") {
     medicine.instruction =
       value as string;
+  } else if (field === "description") {
+    medicine.description =
+      value as string;
+  } else if (field === "evening") {
+    medicine.evening =
+      value as boolean;
   } else if (field === "route") {
     medicine.route =
       value as MedicineRow["route"];
@@ -406,7 +430,7 @@ export default function PrescriptionCard({
     medicine.strength ?? "",
 
   route:
-    "Oral",
+    (medicine.route || (medicine.dosageForm === "Spray" ? "Nasal" : "Oral")) as MedicineRow["route"],
 };
 
       return {
@@ -791,6 +815,14 @@ export default function PrescriptionCard({
                   2 Puffs
                 </option>
 
+                <option value="1 Spray">
+                  1 Spray
+                </option>
+
+                <option value="2 Sprays">
+                  2 Sprays
+                </option>
+
                 <option value="1 Drop">
                   1 Drop
                 </option>
@@ -833,6 +865,10 @@ export default function PrescriptionCard({
 
                 <option value="0-0-1">
                   0-0-1 (Night)
+                </option>
+
+                <option value="EVENING">
+                  Evening
                 </option>
 
                 <option value="1-0-1">
@@ -990,6 +1026,16 @@ export default function PrescriptionCard({
 
             </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <textarea
+                rows={2}
+                value={medicine.description ?? ""}
+                onChange={(e) => updateMedicine(index, "description", e.target.value)}
+                placeholder="Medicine description / special instructions (optional; prints under medicine name)"
+                className="border rounded-lg p-2 w-full"
+              />
+            </div>
+
             {/* SECOND ROW */}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -999,14 +1045,13 @@ export default function PrescriptionCard({
               <div className="font-medium text-blue-700">
                 Schedule:{" "}
 
-                {medicine.frequency ===
-                "ONCE_WEEKLY"
+                {medicine.frequency === "EVENING"
+                  ? "Evening"
+                  : medicine.frequency === "ONCE_WEEKLY"
                   ? "Once Weekly"
-                  : medicine.frequency ===
-                    "ONE_TIME"
+                  : medicine.frequency === "ONE_TIME"
                   ? "One Time Only"
-                  : medicine.frequency ||
-                    "-"}
+                  : medicine.frequency || "-"}
               </div>
 
               {/* QUANTITY */}

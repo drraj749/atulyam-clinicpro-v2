@@ -20,8 +20,10 @@ export type MedicineRow = {
   frequency: string;
   duration: string;
   instruction: string;
+  description: string;
 
   morning: boolean;
+  evening: boolean;
   afternoon: boolean;
   night: boolean;
 
